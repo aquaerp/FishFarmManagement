@@ -1,0 +1,250 @@
+# ========================================
+# AquaFarm Pro - Git Ignore Configuration
+# ========================================
+
+# ====================
+# .NET / C# / Visual Studio
+# ====================
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Build Logs
+*.log
+build_*.txt
+build_*.log
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# StyleCop
+StyleCopReport.xml
+
+# Files built by Visual Studio
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Chutzpah Test files
+_Chutzpah*
+
+# ====================
+# Entity Framework
+# ====================
+
+# EF Core Migrations (keep tracked, but ignore local snapshots)
+# Migrations/*.cs  # Uncomment to ignore all migrations
+
+# Database files
+*.mdf
+*.ldf
+*.ndf
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# LocalDB
+*.mdf
+*.ldf
+
+# ====================
+# Windows
+# ====================
+
+# Windows thumbnail cache
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Recycle Bin
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# ====================
+# Application Specific
+# ====================
+
+# Application settings (keep template, ignore local configs)
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+**/appsettings.*.json
+!**/appsettings.json
+!**/appsettings.*.template.json
+
+# Connection strings (security)
+ConnectionStrings.json
+secrets.json
+
+# Log files
+Logs/*.log
+Logs/*.txt
+*.log
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# Temporary files
+*.tmp
+*.temp
+
+# ====================
+# Documentation & Reports
+# ====================
+
+# Build and session logs (keep in Logs/ folder instead)
+# /build_*.log
+# /build_*.txt
+
+# Archive old reports (optional - uncomment if needed)
+# Docs/Archive/*.md
+
+# ====================
+# Scripts
+# ====================
+
+# PowerShell temporary files
+*.ps1~
+
+# ====================
+# IDEs and Editors
+# ====================
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ====================
+# Mac OS
+# ====================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ====================
+# Package Managers
+# ====================
+
+# npm
+node_modules/
+npm-debug.log*
+
+# Yarn
+yarn-error.log*
+
+# ====================
+# Test Coverage
+# ====================
+coverage/
+*.coverage
+*.coveragexml
+
+# ====================
+# Other
+# ====================
+
+# Temporary folders
+temp/
+tmp/
+
+# Cache
+.cache/
+*.cache
+
+# Publish profiles
+*.pubxml
+*.publishproj
+
+# Keep these important files
+!.gitignore
+!.gitattributes
+!README.md
+!LICENSE.txt
+
