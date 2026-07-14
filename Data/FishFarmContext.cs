@@ -83,6 +83,7 @@ namespace FishFarmManager.Data
         public DbSet<AccountingConfiguration> AccountingConfigurations { get; set; }
         public DbSet<PostingMapping> PostingMappings { get; set; }
         public DbSet<OperationalPostingRecord> OperationalPostingRecords { get; set; }
+        public DbSet<AccountingAdjustment> AccountingAdjustments { get; set; }
 
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
@@ -597,6 +598,19 @@ namespace FishFarmManager.Data
                 entity.HasIndex(e => e.JournalEntryId).IsUnique();
                 entity.HasOne(e => e.JournalEntry).WithMany()
                     .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AccountingAdjustment>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.SupportingDocumentReference).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => e.JournalEntryId).IsUnique();
+                entity.HasIndex(e => e.ReversalJournalEntryId).IsUnique();
+                entity.HasOne(e => e.JournalEntry).WithMany()
+                    .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ReversalJournalEntry).WithMany()
+                    .HasForeignKey(e => e.ReversalJournalEntryId).OnDelete(DeleteBehavior.Restrict);
             });
         }
 

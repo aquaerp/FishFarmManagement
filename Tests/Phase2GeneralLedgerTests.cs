@@ -531,6 +531,82 @@ public sealed class Phase2GeneralLedgerTests
         Assert.True(cashFlow.IsReconciled);
     }
 
+    [Fact]
+    public void AccountingAdjustment_RequiresSupportingEvidenceAndFutureReversalDate()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var service = new AccountingAdjustmentService(database.Context);
+        var baseRequest = database.BalancedRequest(45m);
+
+        Assert.Throws<InvalidOperationException>(() => service.CreateDraft(new AccountingAdjustmentRequest(
+            baseRequest.EntryDate,
+            baseRequest.FiscalPeriodId,
+            "Accrued utility expense",
+            AccountingAdjustmentType.Accrual,
+            " ",
+            new DateTime(2026, 1, 20),
+            baseRequest.Lines), "adjustment-accountant", "Month-end accrual"));
+        Assert.Throws<InvalidOperationException>(() => service.CreateDraft(new AccountingAdjustmentRequest(
+            baseRequest.EntryDate,
+            baseRequest.FiscalPeriodId,
+            "Accrued utility expense",
+            AccountingAdjustmentType.Accrual,
+            "SUPPORT-001",
+            baseRequest.EntryDate,
+            baseRequest.Lines), "adjustment-accountant", "Invalid reversal date"));
+
+        var result = service.CreateDraft(new AccountingAdjustmentRequest(
+            baseRequest.EntryDate,
+            baseRequest.FiscalPeriodId,
+            "Accrued utility expense",
+            AccountingAdjustmentType.Accrual,
+            "SUPPORT-001",
+            new DateTime(2026, 1, 20),
+            baseRequest.Lines), "adjustment-accountant", "Month-end accrual");
+
+        Assert.Equal(JournalEntryStatus.Draft, result.JournalEntry.Status);
+        Assert.Equal("AccountingAdjustment", result.JournalEntry.Source);
+        Assert.Equal(result.JournalEntry.Id, result.Adjustment.JournalEntryId);
+        Assert.Equal("SUPPORT-001", result.Adjustment.SupportingDocumentReference);
+    }
+
+    [Fact]
+    public void PostedAdjustment_AutoReversesOnceWhenDueAndRecordIsImmutable()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var baseRequest = database.BalancedRequest(65m);
+        var service = new AccountingAdjustmentService(database.Context);
+        var result = service.CreateDraft(new AccountingAdjustmentRequest(
+            baseRequest.EntryDate,
+            baseRequest.FiscalPeriodId,
+            "Accrued professional fees",
+            AccountingAdjustmentType.Accrual,
+            "ENGAGEMENT-2026-01",
+            new DateTime(2026, 1, 20),
+            baseRequest.Lines), "adjustment-accountant", "Supported month-end accrual");
+        var ledger = new GeneralLedgerService(database.Context);
+        ledger.Approve(result.JournalEntry.Id, "adjustment-approver", "Supporting evidence checked");
+        ledger.Post(result.JournalEntry.Id, "posting-controller", "Adjustment posted");
+
+        Assert.Throws<InvalidOperationException>(() => service.ReverseDue(
+            result.Adjustment.Id, new DateTime(2026, 1, 19), "reversal-controller", "Not due"));
+        var reversal = service.ReverseDue(
+            result.Adjustment.Id, new DateTime(2026, 1, 20), "reversal-controller", "Scheduled reversal due");
+        var stored = database.Context.AccountingAdjustments.Single(item => item.Id == result.Adjustment.Id);
+        var lines = database.Context.JournalEntryLines.AsNoTracking()
+            .Where(item => item.JournalEntryId == reversal.Id).OrderBy(item => item.LineNumber).ToArray();
+
+        Assert.Equal(JournalEntryStatus.Posted, reversal.Status);
+        Assert.Equal(reversal.Id, stored.ReversalJournalEntryId);
+        Assert.Equal(65m, lines[0].Credit);
+        Assert.Equal(65m, lines[1].Debit);
+        Assert.Throws<InvalidOperationException>(() => service.ReverseDue(
+            result.Adjustment.Id, new DateTime(2026, 1, 21), "reversal-controller", "Duplicate reversal"));
+
+        stored.SupportingDocumentReference = "TAMPERED";
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
     private sealed class LedgerTestDatabase : IDisposable
     {
         private readonly string _databasePath;

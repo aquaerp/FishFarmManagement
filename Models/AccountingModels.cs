@@ -37,6 +37,7 @@ public enum FiscalPeriodStatus { Open, Closed }
 public enum JournalEntryStatus { Draft, Approved, Posted, Reversed }
 public enum CostCenterType { Farm, Pond, ProductionCycle, Department, Other }
 public enum AccountingConfigurationStatus { Draft, Approved, Retired }
+public enum AccountingAdjustmentType { Accrual, Deferral, Reclassification, Estimate, Correction, Other }
 public enum PostingEventType
 {
     SalesCompleted,
@@ -213,6 +214,20 @@ public sealed class OperationalPostingRecord
     public string SourceEntityId { get; set; } = string.Empty;
     public long JournalEntryId { get; set; }
     public JournalEntry JournalEntry { get; set; } = null!;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+public sealed class AccountingAdjustment
+{
+    public long Id { get; set; }
+    public long JournalEntryId { get; set; }
+    public JournalEntry JournalEntry { get; set; } = null!;
+    public AccountingAdjustmentType Type { get; set; }
+    public string SupportingDocumentReference { get; set; } = string.Empty;
+    public DateTime? ScheduledReversalDate { get; set; }
+    public long? ReversalJournalEntryId { get; set; }
+    public JournalEntry? ReversalJournalEntry { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
 }

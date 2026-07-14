@@ -164,7 +164,9 @@ public sealed class GeneralLedgerService
     public JournalEntry Reverse(long entryId, DateTime reversalDate, string actorUsername, string reason)
     {
         RequireActorAndReason(actorUsername, reason);
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         var original = LoadEntry(entryId);
         if (original.Status != JournalEntryStatus.Posted)
             throw new InvalidOperationException("Only posted entries can be reversed.");
@@ -224,7 +226,7 @@ public sealed class GeneralLedgerService
         AddAudit(original.Id, "Reverse", actorUsername, reason, before, Snapshot(original));
         AddAudit(reversal.Id, "CreateReversal", actorUsername, reason, null, Snapshot(reversal));
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return reversal;
     }
 
