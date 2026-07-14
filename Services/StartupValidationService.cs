@@ -59,10 +59,25 @@ public static class StartupValidationService
             }
         }
 
-        if (configuration.GetValue("Backup:ExternalCopyRequired", false)
-            && string.IsNullOrWhiteSpace(configuration["Backup:ExternalDirectory"]))
+        if (configuration.GetValue("Backup:ExternalCopyRequired", false))
         {
-            throw new InvalidOperationException("Backup:ExternalDirectory is required when external copies are mandatory.");
+            var configuredExternalDirectory = configuration["Backup:ExternalDirectory"];
+            if (string.IsNullOrWhiteSpace(configuredExternalDirectory))
+            {
+                throw new InvalidOperationException("Backup:ExternalDirectory is required when external copies are mandatory.");
+            }
+
+            var externalDirectory = Path.GetFullPath(
+                Environment.ExpandEnvironmentVariables(configuredExternalDirectory));
+            var externalRoot = Path.GetPathRoot(externalDirectory);
+            if (string.IsNullOrWhiteSpace(externalRoot)
+                || !Directory.Exists(externalRoot)
+                || !new DriveInfo(externalRoot).IsReady)
+            {
+                throw new InvalidOperationException("The required external backup drive is not ready.");
+            }
+
+            EnsureWritableDirectory(externalDirectory, "external-backup");
         }
 
         return new StartupValidationResult(databasePath, backupDirectory, warnings);

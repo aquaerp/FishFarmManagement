@@ -46,6 +46,27 @@ public sealed class RuntimePathsTests
         Assert.Throws<InvalidOperationException>(() => StartupValidationService.ValidateAndPrepare(configuration));
     }
 
+    [Fact]
+    public void StartupValidation_RejectsUnavailableRequiredExternalDrive()
+    {
+        var unavailableLetter = Enumerable.Range('F', 'Z' - 'F' + 1)
+            .Select(value => $"{(char)value}:\\")
+            .First(root => !Directory.Exists(root));
+        var localRoot = Path.Combine(Path.GetTempPath(), $"aquafarm-disconnect-{Guid.NewGuid():N}");
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = $"Data Source={Path.Combine(localRoot, "data.db")}",
+            ["Database:Provider"] = "SQLite",
+            ["AppSettings:Environment"] = "Production",
+            ["Backup:Directory"] = Path.Combine(localRoot, "backups"),
+            ["Backup:Encrypt"] = "true",
+            ["Backup:ExternalCopyRequired"] = "true",
+            ["Backup:ExternalDirectory"] = Path.Combine(unavailableLetter, "AquaFarm", "Backups")
+        });
+
+        Assert.Throws<InvalidOperationException>(() => StartupValidationService.ValidateAndPrepare(configuration));
+    }
+
     internal static IConfiguration BuildConfiguration(Dictionary<string, string?> values)
         => new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 }
@@ -118,6 +139,67 @@ public sealed class BackupServiceTests
             {
                 Directory.Delete(root, true);
             }
+        }
+    }
+
+    [Fact]
+    public async Task ExternalBackup_CopyCanBeRestoredFromConfiguredDrive()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aquafarm-external-test-{Guid.NewGuid():N}");
+        var databasePath = Path.Combine(root, "data", "FishFarm.db");
+        var backupDirectory = Path.Combine(root, "backups");
+        var configuredExternalRoot = Environment.GetEnvironmentVariable("AQUAFARM_TEST_EXTERNAL_BACKUP_DIRECTORY");
+        var externalDirectory = string.IsNullOrWhiteSpace(configuredExternalRoot)
+            ? Path.Combine(root, "external")
+            : configuredExternalRoot;
+        Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
+
+        var configuration = RuntimePathsTests.BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = $"Data Source={databasePath};Pooling=False",
+            ["Database:Provider"] = "SQLite",
+            ["AppSettings:Environment"] = "Production",
+            ["AppSettings:SeedDemoData"] = "false",
+            ["Backup:Directory"] = backupDirectory,
+            ["Backup:Encrypt"] = "true",
+            ["Backup:MaxBackups"] = "20",
+            ["Backup:ExternalCopyRequired"] = "true",
+            ["Backup:ExternalDirectory"] = externalDirectory
+        });
+
+        try
+        {
+            StartupValidationService.ValidateAndPrepare(configuration);
+            var options = new DbContextOptionsBuilder<FishFarmContext>()
+                .UseSqlite(RuntimePaths.ResolveConnectionString(configuration))
+                .Options;
+            await using var context = new FishFarmContext(options);
+            await context.Database.EnsureCreatedAsync();
+            context.Customers.Add(new Customer
+            {
+                Name = "External Backup Proof",
+                Type = CustomerType.Individual,
+                Status = CustomerStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+
+            var service = new BackupService(context, configuration);
+            Assert.True(await service.CreateBackup());
+            var localBackup = Assert.Single(service.GetAvailableBackups(), item => item.Type == BackupType.Manual);
+            var externalBackup = Path.Combine(externalDirectory, localBackup.FileName);
+            Assert.True(File.Exists(externalBackup));
+            Assert.True(File.Exists(externalBackup + ".sha256"));
+
+            context.Customers.RemoveRange(context.Customers);
+            await context.SaveChangesAsync();
+            Assert.True(await service.RestoreBackup(externalBackup));
+            await using var verification = new FishFarmContext(options);
+            Assert.Equal("External Backup Proof", (await verification.Customers.SingleAsync()).Name);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
         }
     }
 }
