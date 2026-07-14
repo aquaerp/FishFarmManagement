@@ -40,6 +40,8 @@ public enum AccountingConfigurationStatus { Draft, Approved, Retired }
 public enum AccountingAdjustmentType { Accrual, Deferral, Reclassification, Estimate, Correction, Other }
 public enum ExchangeRateStatus { Draft, Approved, Retired }
 public enum ExchangeRatePurpose { Transaction, Closing }
+public enum ForeignMonetaryItemKind { Asset, Liability }
+public enum ForeignMonetaryItemStatus { Open, Settled }
 public enum PostingEventType
 {
     SalesCompleted,
@@ -254,4 +256,42 @@ public sealed class ForeignExchangeRate
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? ApprovedAtUtc { get; set; }
     public string? ApprovedBy { get; set; }
+}
+
+public sealed class ForeignMonetaryItem
+{
+    public long Id { get; set; }
+    public string Reference { get; set; } = string.Empty;
+    public ForeignMonetaryItemKind Kind { get; set; }
+    public long RecognitionJournalEntryLineId { get; set; }
+    public JournalEntryLine RecognitionJournalEntryLine { get; set; } = null!;
+    public int LedgerAccountId { get; set; }
+    public LedgerAccount LedgerAccount { get; set; } = null!;
+    public string CurrencyCode { get; set; } = string.Empty;
+    public decimal OriginalForeignAmount { get; set; }
+    public decimal OutstandingForeignAmount { get; set; }
+    public decimal CarryingAmountSar { get; set; }
+    public DateTime LastMeasurementDate { get; set; }
+    public ForeignMonetaryItemStatus Status { get; set; } = ForeignMonetaryItemStatus.Open;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public ICollection<ForeignCurrencySettlement> Settlements { get; set; } = new List<ForeignCurrencySettlement>();
+}
+
+public sealed class ForeignCurrencySettlement
+{
+    public long Id { get; set; }
+    public long ForeignMonetaryItemId { get; set; }
+    public ForeignMonetaryItem ForeignMonetaryItem { get; set; } = null!;
+    public DateTime SettlementDate { get; set; }
+    public decimal ForeignAmount { get; set; }
+    public decimal CarryingAmountReleasedSar { get; set; }
+    public decimal SettlementAmountSar { get; set; }
+    public decimal RealizedGainLossSar { get; set; }
+    public long ForeignExchangeRateId { get; set; }
+    public ForeignExchangeRate ForeignExchangeRate { get; set; } = null!;
+    public long JournalEntryId { get; set; }
+    public JournalEntry JournalEntry { get; set; } = null!;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
 }

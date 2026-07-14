@@ -150,6 +150,7 @@ namespace FishFarmManager
             services.AddScoped<FiscalYearClosingService>();
             services.AddScoped<AccountingAdjustmentService>();
             services.AddScoped<ForeignExchangeRateService>();
+            services.AddScoped<ForeignCurrencyMonetaryItemService>();
             services.AddHttpClient();
 
             // إضافة النماذج

@@ -180,6 +180,9 @@ public sealed class GeneralLedgerService
         var original = LoadEntry(entryId);
         if (original.Status != JournalEntryStatus.Posted)
             throw new InvalidOperationException("Only posted entries can be reversed.");
+        var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
+        if (_context.ForeignMonetaryItems.Any(item => originalLineIds.Contains(item.RecognitionJournalEntryLineId)))
+            throw new InvalidOperationException("A journal that originates a governed foreign monetary item cannot be reversed through the generic reversal workflow.");
         EnsureFunctionalCurrency(original.Lines);
         var reversalPeriod = _context.FiscalPeriods.Include(item => item.FiscalYear)
             .SingleOrDefault(item => item.StartDate <= reversalDate.Date && item.EndDate >= reversalDate.Date)

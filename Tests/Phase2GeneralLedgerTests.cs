@@ -798,6 +798,167 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }
 
+    [Fact]
+    public void ForeignMonetaryItem_FullAssetSettlementPostsRealizedGain()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var recognitionRate = rateService.CreateDraft(new(
+            "USD", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 3.75m,
+            "SAMA recognition rate", "evidence/USD-recognition.pdf"), "rate-maker", "Recognition rate");
+        rateService.Approve(recognitionRate.Id, "rate-reviewer", "Recognition rate verified");
+        var baseRequest = database.BalancedRequest(375m);
+        var recognitionRequest = baseRequest with
+        {
+            Lines = new[]
+            {
+                baseRequest.Lines[0] with
+                {
+                    ForeignCurrencyCode = "USD", ForeignAmount = 100m,
+                    ForeignExchangeRateId = recognitionRate.Id
+                },
+                baseRequest.Lines[1]
+            }
+        };
+        var ledger = new GeneralLedgerService(database.Context);
+        var recognition = ledger.CreateDraft(recognitionRequest, "sales-accountant", "Foreign receivable");
+        ledger.Approve(recognition.Id, "sales-reviewer", "Receivable checked");
+        ledger.Post(recognition.Id, "posting-controller", "Receivable posted");
+        var recognitionLine = database.Context.JournalEntryLines.Single(line =>
+            line.JournalEntryId == recognition.Id && line.ForeignExchangeRateId != null);
+        var service = new ForeignCurrencyMonetaryItemService(database.Context);
+        var item = service.Register(new(recognitionLine.Id, ForeignMonetaryItemKind.Asset, "AR-USD-001"),
+            "subledger-accountant", "Register posted receivable");
+        Assert.Throws<InvalidOperationException>(() => ledger.Reverse(
+            recognition.Id, new DateTime(2026, 1, 18), "controller", "Generic reversal forbidden"));
+        var settlementRate = rateService.CreateDraft(new(
+            "USD", new DateTime(2026, 1, 20), ExchangeRatePurpose.Transaction, 3.80m,
+            "SAMA settlement rate", "evidence/USD-settlement.pdf"), "rate-maker", "Settlement rate");
+        rateService.Approve(settlementRate.Id, "rate-reviewer", "Settlement rate verified");
+        var accounts = database.SeedFxSettlementAccounts();
+
+        var result = service.Settle(new(
+                item.Id, new DateTime(2026, 1, 20), database.PeriodId, 100m, settlementRate.Id,
+                accounts.CashId, accounts.GainId, accounts.LossId, "RCPT-USD-001"),
+            "settlement-maker", "settlement-reviewer", "settlement-poster", "USD receipt settled");
+        var lines = database.Context.JournalEntryLines.AsNoTracking()
+            .Where(line => line.JournalEntryId == result.JournalEntry.Id).ToArray();
+
+        Assert.Equal(JournalEntryStatus.Posted, result.JournalEntry.Status);
+        Assert.Equal(ForeignMonetaryItemStatus.Settled, result.Item.Status);
+        Assert.Equal(0m, result.Item.OutstandingForeignAmount);
+        Assert.Equal(0m, result.Item.CarryingAmountSar);
+        Assert.Equal(5m, result.Settlement.RealizedGainLossSar);
+        Assert.Contains(lines, line => line.LedgerAccountId == accounts.CashId
+            && line.Debit == 380m && line.ForeignAmount == 100m);
+        Assert.Contains(lines, line => line.LedgerAccountId == item.LedgerAccountId && line.Credit == 375m);
+        Assert.Contains(lines, line => line.LedgerAccountId == accounts.GainId && line.Credit == 5m);
+    }
+
+    [Fact]
+    public void ForeignMonetaryItem_PartialSettlementPreservesBalanceAndSettlementIsImmutable()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var recognitionRate = rateService.CreateDraft(new(
+            "EUR", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 4m,
+            "SAMA recognition rate", "evidence/EUR-recognition.pdf"), "rate-maker", "Recognition rate");
+        rateService.Approve(recognitionRate.Id, "rate-reviewer", "Recognition rate verified");
+        var baseRequest = database.BalancedRequest(400m);
+        var recognitionRequest = baseRequest with
+        {
+            Lines = new[]
+            {
+                baseRequest.Lines[0] with
+                {
+                    ForeignCurrencyCode = "EUR", ForeignAmount = 100m,
+                    ForeignExchangeRateId = recognitionRate.Id
+                },
+                baseRequest.Lines[1]
+            }
+        };
+        var ledger = new GeneralLedgerService(database.Context);
+        var recognition = ledger.CreateDraft(recognitionRequest, "sales-accountant", "EUR receivable");
+        ledger.Approve(recognition.Id, "sales-reviewer", "Receivable checked");
+        ledger.Post(recognition.Id, "posting-controller", "Receivable posted");
+        var recognitionLine = database.Context.JournalEntryLines.Single(line =>
+            line.JournalEntryId == recognition.Id && line.ForeignExchangeRateId != null);
+        var service = new ForeignCurrencyMonetaryItemService(database.Context);
+        var item = service.Register(new(recognitionLine.Id, ForeignMonetaryItemKind.Asset, "AR-EUR-001"),
+            "subledger-accountant", "Register posted receivable");
+        var settlementRate = rateService.CreateDraft(new(
+            "EUR", new DateTime(2026, 1, 20), ExchangeRatePurpose.Transaction, 4.05m,
+            "SAMA settlement rate", "evidence/EUR-settlement.pdf"), "rate-maker", "Settlement rate");
+        rateService.Approve(settlementRate.Id, "rate-reviewer", "Settlement rate verified");
+        var accounts = database.SeedFxSettlementAccounts();
+
+        var result = service.Settle(new(
+                item.Id, new DateTime(2026, 1, 20), database.PeriodId, 40m, settlementRate.Id,
+                accounts.CashId, accounts.GainId, accounts.LossId),
+            "settlement-maker", "settlement-reviewer", "settlement-poster", "Partial EUR receipt");
+
+        Assert.Equal(ForeignMonetaryItemStatus.Open, result.Item.Status);
+        Assert.Equal(60m, result.Item.OutstandingForeignAmount);
+        Assert.Equal(240m, result.Item.CarryingAmountSar);
+        Assert.Equal(160m, result.Settlement.CarryingAmountReleasedSar);
+        Assert.Equal(162m, result.Settlement.SettlementAmountSar);
+        Assert.Equal(2m, result.Settlement.RealizedGainLossSar);
+        Assert.Throws<InvalidOperationException>(() => service.Settle(new(
+                item.Id, new DateTime(2026, 1, 20), database.PeriodId, 61m, settlementRate.Id,
+                accounts.CashId, accounts.GainId, accounts.LossId),
+            "settlement-maker", "settlement-reviewer", "settlement-poster", "Over-settlement"));
+
+        result.Settlement.ForeignAmount = 39m;
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public void ForeignMonetaryItem_LiabilitySettlementPostsRealizedLoss()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var recognitionRate = rateService.CreateDraft(new(
+            "GBP", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 4.50m,
+            "SAMA recognition rate", "evidence/GBP-recognition.pdf"), "rate-maker", "Recognition rate");
+        rateService.Approve(recognitionRate.Id, "rate-reviewer", "Recognition rate verified");
+        var recognitionAccounts = database.SeedFxLiabilityRecognitionAccounts();
+        var ledger = new GeneralLedgerService(database.Context);
+        var recognition = ledger.CreateDraft(new JournalDraftRequest(
+                new DateTime(2026, 1, 15), database.PeriodId, "GBP payable", "ForeignPurchase", "AP-GBP-001",
+                new[]
+                {
+                    new JournalLineRequest(recognitionAccounts.ExpenseId, 450m, 0m),
+                    new JournalLineRequest(recognitionAccounts.PayableId, 0m, 450m,
+                        ForeignCurrencyCode: "GBP", ForeignAmount: 100m,
+                        ForeignExchangeRateId: recognitionRate.Id)
+                }),
+            "purchase-accountant", "Foreign payable");
+        ledger.Approve(recognition.Id, "purchase-reviewer", "Payable checked");
+        ledger.Post(recognition.Id, "posting-controller", "Payable posted");
+        var recognitionLine = database.Context.JournalEntryLines.Single(line =>
+            line.JournalEntryId == recognition.Id && line.ForeignExchangeRateId != null);
+        var service = new ForeignCurrencyMonetaryItemService(database.Context);
+        var item = service.Register(new(recognitionLine.Id, ForeignMonetaryItemKind.Liability, "AP-GBP-001"),
+            "subledger-accountant", "Register posted payable");
+        var settlementRate = rateService.CreateDraft(new(
+            "GBP", new DateTime(2026, 1, 22), ExchangeRatePurpose.Transaction, 4.55m,
+            "SAMA settlement rate", "evidence/GBP-settlement.pdf"), "rate-maker", "Settlement rate");
+        rateService.Approve(settlementRate.Id, "rate-reviewer", "Settlement rate verified");
+        var accounts = database.SeedFxSettlementAccounts();
+
+        var result = service.Settle(new(
+                item.Id, new DateTime(2026, 1, 22), database.PeriodId, 100m, settlementRate.Id,
+                accounts.CashId, accounts.GainId, accounts.LossId),
+            "settlement-maker", "settlement-reviewer", "settlement-poster", "GBP payable settled");
+        var lines = database.Context.JournalEntryLines.AsNoTracking()
+            .Where(line => line.JournalEntryId == result.JournalEntry.Id).ToArray();
+
+        Assert.Equal(-5m, result.Settlement.RealizedGainLossSar);
+        Assert.Contains(lines, line => line.LedgerAccountId == recognitionAccounts.PayableId && line.Debit == 450m);
+        Assert.Contains(lines, line => line.LedgerAccountId == accounts.CashId && line.Credit == 455m);
+        Assert.Contains(lines, line => line.LedgerAccountId == accounts.LossId && line.Debit == 5m);
+    }
+
     private sealed class LedgerTestDatabase : IDisposable
     {
         private readonly string _databasePath;
@@ -836,6 +997,50 @@ public sealed class Phase2GeneralLedgerTests
                 new JournalLineRequest(DebitAccountId, amount, 0m, Description: "Debit"),
                 new JournalLineRequest(CreditAccountId, 0m, amount, Description: "Credit")
             });
+
+        public (int CashId, int GainId, int LossId) SeedFxSettlementAccounts()
+        {
+            var cash = new LedgerAccount
+            {
+                Code = $"FXC-{Guid.NewGuid():N}", NameAr = "نقدية تسوية عملة",
+                Type = LedgerAccountType.Asset, NormalBalance = AccountNormalBalance.Debit,
+                FinancialStatementCategory = FinancialStatementCategory.Cash
+            };
+            var gain = new LedgerAccount
+            {
+                Code = $"FXG-{Guid.NewGuid():N}", NameAr = "أرباح فروق عملة محققة",
+                Type = LedgerAccountType.Revenue, NormalBalance = AccountNormalBalance.Credit,
+                FinancialStatementCategory = FinancialStatementCategory.OtherRevenue
+            };
+            var loss = new LedgerAccount
+            {
+                Code = $"FXL-{Guid.NewGuid():N}", NameAr = "خسائر فروق عملة محققة",
+                Type = LedgerAccountType.Expense, NormalBalance = AccountNormalBalance.Debit,
+                FinancialStatementCategory = FinancialStatementCategory.OtherOperatingExpense
+            };
+            Context.AddRange(cash, gain, loss);
+            Context.SaveChanges();
+            return (cash.Id, gain.Id, loss.Id);
+        }
+
+        public (int PayableId, int ExpenseId) SeedFxLiabilityRecognitionAccounts()
+        {
+            var payable = new LedgerAccount
+            {
+                Code = $"FXP-{Guid.NewGuid():N}", NameAr = "ذمم دائنة أجنبية",
+                Type = LedgerAccountType.Liability, NormalBalance = AccountNormalBalance.Credit,
+                FinancialStatementCategory = FinancialStatementCategory.AccountsPayable
+            };
+            var expense = new LedgerAccount
+            {
+                Code = $"FXE-{Guid.NewGuid():N}", NameAr = "مشتريات أجنبية",
+                Type = LedgerAccountType.Expense, NormalBalance = AccountNormalBalance.Debit,
+                FinancialStatementCategory = FinancialStatementCategory.CostOfGoodsSold
+            };
+            Context.AddRange(payable, expense);
+            Context.SaveChanges();
+            return (payable.Id, expense.Id);
+        }
 
         private void Seed()
         {

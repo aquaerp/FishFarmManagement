@@ -85,6 +85,8 @@ namespace FishFarmManager.Data
         public DbSet<OperationalPostingRecord> OperationalPostingRecords { get; set; }
         public DbSet<AccountingAdjustment> AccountingAdjustments { get; set; }
         public DbSet<ForeignExchangeRate> ForeignExchangeRates { get; set; }
+        public DbSet<ForeignMonetaryItem> ForeignMonetaryItems { get; set; }
+        public DbSet<ForeignCurrencySettlement> ForeignCurrencySettlements { get; set; }
 
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
@@ -634,6 +636,40 @@ namespace FishFarmManager.Data
                 entity.HasIndex(e => new { e.CurrencyCode, e.RateDate, e.Purpose, e.Version }).IsUnique();
                 entity.ToTable(table => table.HasCheckConstraint(
                     "CK_ForeignExchangeRate_Positive", "CAST(SarPerUnit AS NUMERIC) > 0"));
+            });
+
+            modelBuilder.Entity<ForeignMonetaryItem>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Reference).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => e.Reference).IsUnique();
+                entity.HasIndex(e => e.RecognitionJournalEntryLineId).IsUnique();
+                entity.Property(e => e.CurrencyCode).IsRequired().HasMaxLength(3);
+                entity.Property(e => e.OriginalForeignAmount).HasPrecision(18, 8);
+                entity.Property(e => e.OutstandingForeignAmount).HasPrecision(18, 8);
+                entity.Property(e => e.CarryingAmountSar).HasPrecision(18, 2);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasOne(e => e.RecognitionJournalEntryLine).WithMany()
+                    .HasForeignKey(e => e.RecognitionJournalEntryLineId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.LedgerAccount).WithMany()
+                    .HasForeignKey(e => e.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ForeignCurrencySettlement>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ForeignAmount).HasPrecision(18, 8);
+                entity.Property(e => e.CarryingAmountReleasedSar).HasPrecision(18, 2);
+                entity.Property(e => e.SettlementAmountSar).HasPrecision(18, 2);
+                entity.Property(e => e.RealizedGainLossSar).HasPrecision(18, 2);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => e.JournalEntryId).IsUnique();
+                entity.HasOne(e => e.ForeignMonetaryItem).WithMany(e => e.Settlements)
+                    .HasForeignKey(e => e.ForeignMonetaryItemId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ForeignExchangeRate).WithMany()
+                    .HasForeignKey(e => e.ForeignExchangeRateId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.JournalEntry).WithMany()
+                    .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
             });
         }
 
