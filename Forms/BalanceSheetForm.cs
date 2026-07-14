@@ -11,7 +11,7 @@ namespace FishFarmManager.Forms
     /// <summary>
     /// نموذج الميزانية العمومية
     /// Balance Sheet Form
-    /// SOCPA Compliant
+    /// General-ledger based; subject to external accounting review.
     /// </summary>
     public partial class BalanceSheetForm : Form
     {
@@ -260,6 +260,9 @@ namespace FishFarmManager.Forms
             leftY += 38;
 
             AddTotalLine(_reportPanel, "صافي الأصول الثابتة", data.FixedAssetsNet, col1X, leftY, labelWidth, valueWidth);
+            leftY += 32;
+
+            AddLine(_reportPanel, "أصول غير متداولة أخرى", data.OtherNonCurrentAssets, col1X, leftY, labelWidth, valueWidth);
             leftY += 50;
 
             // إجمالي الأصول
@@ -311,6 +314,9 @@ namespace FishFarmManager.Forms
             rightY += 32;
 
             AddLine(_reportPanel, "الأرباح المحتجزة", data.RetainedEarnings, col2X, rightY, labelWidth, valueWidth);
+            rightY += 32;
+
+            AddLine(_reportPanel, "حقوق ملكية أخرى", data.OtherEquity, col2X, rightY, labelWidth, valueWidth);
             rightY += 32;
 
             AddLine(_reportPanel, "ربح العام الحالي", data.CurrentYearProfit, col2X, rightY, labelWidth, valueWidth);

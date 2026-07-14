@@ -11,7 +11,7 @@ namespace FishFarmManager.Forms
     /// <summary>
     /// نموذج قائمة الدخل المطور
     /// Enhanced Income Statement Form
-    /// SOCPA Compliant with Advanced Features
+    /// General-ledger based; subject to external accounting review.
     /// </summary>
     public partial class IncomeStatementForm : Form
     {
@@ -122,7 +122,7 @@ namespace FishFarmManager.Forms
 
             var subtitleLabel = new Label
             {
-                Text = "متوافقة مع المعايير المحاسبية السعودية (SOCPA)",
+                Text = "مستخرجة من الأستاذ العام — قيد المراجعة المحاسبية",
                 Location = new Point(20, 35),
                 Size = new Size(350, 20),
                 Font = new Font("Cairo", 8F),

@@ -369,7 +369,7 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
-    public void ClosedFiscalYear_CreatesTwelvePeriodNextYearAndBalancedOpeningDraft()
+    public async Task ClosedFiscalYear_CreatesTwelvePeriodNextYearAndBalancedOpeningDraft()
     {
         using var database = LedgerTestDatabase.Create();
         new AccountingConfigurationService(database.Context).CreatePilotDraft("configuration-owner");
@@ -382,6 +382,11 @@ public sealed class Phase2GeneralLedgerTests
         ledger.Approve(closing.Id, "independent-approver", "Closing checked");
         ledger.Post(closing.Id, "posting-controller", "Closing posted");
         service.CloseFiscalYear(database.FiscalYearId, "financial-controller", "Year approved for close");
+
+        var closedBalance = await new FinancialService(database.Context)
+            .GenerateBalanceSheetAsync(new DateTime(2026, 12, 31));
+        Assert.Equal(0m, closedBalance.CurrentYearProfit);
+        Assert.True(closedBalance.IsBalanced);
 
         var result = service.CreateNextFiscalYearWithOpeningDraft(
             database.FiscalYearId,
@@ -397,6 +402,75 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Contains(openingLines, line => line.Code == "110100" && line.Debit == 725m);
         Assert.Contains(openingLines, line => line.Code == "3200" && line.Credit == 725m);
         Assert.Equal(openingLines.Sum(line => line.Debit), openingLines.Sum(line => line.Credit));
+    }
+
+    [Fact]
+    public async Task FinancialStatements_UseOnlyPostedGeneralLedgerAndReconcileCash()
+    {
+        using var database = LedgerTestDatabase.Create();
+        new AccountingConfigurationService(database.Context).CreatePilotDraft("configuration-owner");
+        var year = new FiscalYearClosingService(database.Context);
+        var ledger = new GeneralLedgerService(database.Context);
+        var opening = year.CreateOpeningBalanceDraft(
+            database.FiscalYearId,
+            new[]
+            {
+                new OpeningBalanceRequest(database.AccountId("1110"), 1_000m, 0m),
+                new OpeningBalanceRequest(database.AccountId("1130"), 200m, 0m),
+                new OpeningBalanceRequest(database.AccountId("1510"), 500m, 0m),
+                new OpeningBalanceRequest(database.AccountId("3100"), 0m, 1_700m)
+            },
+            "opening-accountant",
+            "Audited opening schedule");
+        ledger.Approve(opening.Id, "opening-approver", "Opening balances checked");
+        ledger.Post(opening.Id, "posting-controller", "Opening balances posted");
+
+        database.PostJournal("Cash sale", "Sales", new[]
+        {
+            ("1110", 115m, 0m),
+            ("4100", 0m, 100m),
+            ("2200", 0m, 15m)
+        });
+        database.PostJournal("Cost of sale", "Inventory", new[]
+        {
+            ("5100", 30m, 0m),
+            ("1130", 0m, 30m)
+        });
+        database.PostJournal("Payroll accrual", "Payroll", new[]
+        {
+            ("5200", 40m, 0m),
+            ("2110", 0m, 40m)
+        });
+        database.PostJournal("Depreciation", "Depreciation", new[]
+        {
+            ("5300", 20m, 0m),
+            ("1520", 0m, 20m)
+        });
+        database.CreateDraftJournal("Unposted misleading sale", new[]
+        {
+            ("1110", 999m, 0m),
+            ("4100", 0m, 999m)
+        });
+        database.SeedCompletedSalesOrder(9_999m, 0m); // Operational data alone must not affect statements.
+
+        var service = new FinancialService(database.Context);
+        var income = await service.GenerateIncomeStatementAsync(new DateTime(2026, 1, 1), new DateTime(2026, 1, 31));
+        var balance = await service.GenerateBalanceSheetAsync(new DateTime(2026, 1, 31));
+        var cashFlow = await service.GenerateCashFlowStatementAsync(new DateTime(2026, 1, 1), new DateTime(2026, 1, 31));
+
+        Assert.Equal(100m, income.SalesRevenue);
+        Assert.Equal(30m, income.CostOfGoodsSold);
+        Assert.Equal(40m, income.SalariesExpense);
+        Assert.Equal(20m, income.DepreciationExpense);
+        Assert.Equal(10m, income.NetProfit);
+        Assert.Equal(1_115m, balance.Cash);
+        Assert.Equal(1_765m, balance.TotalAssets);
+        Assert.Equal(10m, balance.CurrentYearProfit);
+        Assert.True(balance.IsBalanced);
+        Assert.Equal(1_000m, cashFlow.BeginningCash);
+        Assert.Equal(115m, cashFlow.NetCashFromOperating);
+        Assert.Equal(1_115m, cashFlow.EndingCash);
+        Assert.True(cashFlow.IsReconciled);
     }
 
     private sealed class LedgerTestDatabase : IDisposable
@@ -586,6 +660,38 @@ public sealed class Phase2GeneralLedgerTests
                 ledger.ClosePeriod(periodId, "period-controller", "Monthly reconciliation completed");
             }
         }
+
+        public JournalEntry PostJournal(
+            string description,
+            string source,
+            IReadOnlyList<(string Code, decimal Debit, decimal Credit)> lines)
+        {
+            var ledger = new GeneralLedgerService(Context);
+            var draft = ledger.CreateDraft(new JournalDraftRequest(
+                new DateTime(2026, 1, 25),
+                PeriodId,
+                description,
+                source,
+                Guid.NewGuid().ToString("N"),
+                lines.Select(item => new JournalLineRequest(AccountId(item.Code), item.Debit, item.Credit)).ToArray()),
+                "statement-accountant",
+                "Statement test journal");
+            ledger.Approve(draft.Id, "statement-approver", "Statement journal checked");
+            return ledger.Post(draft.Id, "posting-controller", "Statement journal posted");
+        }
+
+        public JournalEntry CreateDraftJournal(
+            string description,
+            IReadOnlyList<(string Code, decimal Debit, decimal Credit)> lines) =>
+            new GeneralLedgerService(Context).CreateDraft(new JournalDraftRequest(
+                new DateTime(2026, 1, 26),
+                PeriodId,
+                description,
+                "DraftOnly",
+                Guid.NewGuid().ToString("N"),
+                lines.Select(item => new JournalLineRequest(AccountId(item.Code), item.Debit, item.Credit)).ToArray()),
+                "draft-accountant",
+                "Must remain outside reports");
 
         public (string Code, decimal Debit, decimal Credit)[] LinesWithAccountCodes(long entryId) =>
             Context.JournalEntryLines.AsNoTracking()

@@ -11,7 +11,7 @@ namespace FishFarmManager.Forms
     /// <summary>
     /// نموذج قائمة التدفقات النقدية
     /// Cash Flow Statement Form
-    /// SOCPA Compliant
+    /// General-ledger based; subject to external accounting review.
     /// </summary>
     public partial class CashFlowForm : Form
     {
@@ -156,6 +156,9 @@ namespace FishFarmManager.Forms
             y += 35;
 
             AddLine(_reportPanel, "التغير في الدائنين", data.ChangeInPayables, y, rightX, valueX, labelWidth, valueWidth);
+            y += 35;
+
+            AddLine(_reportPanel, "تسويات تشغيلية أخرى من الأستاذ", data.OtherOperatingAdjustments, y, rightX, valueX, labelWidth, valueWidth);
             y += 40;
 
             AddTotalLine(_reportPanel, "صافي النقد من الأنشطة التشغيلية", data.NetCashFromOperating, y, rightX, valueX, labelWidth, valueWidth, Color.FromArgb(38, 166, 154));
@@ -202,6 +205,9 @@ namespace FishFarmManager.Forms
 
             AddGrandTotalLine(_reportPanel, "النقدية في نهاية الفترة", data.EndingCash, y, rightX, valueX, labelWidth, valueWidth);
             y += 60;
+
+            AddSubtitle(_reportPanel, data.IsReconciled ? "✓ التدفقات مطابقة لحركة النقدية في الأستاذ" : "✗ يوجد فرق في مطابقة حركة النقدية", y);
+            y += 35;
 
             AddFooter(_reportPanel, $"تم الإنشاء: {data.GeneratedDate:yyyy-MM-dd HH:mm}", y);
         }

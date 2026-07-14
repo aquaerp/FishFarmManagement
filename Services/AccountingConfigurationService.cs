@@ -89,15 +89,21 @@ public sealed class AccountingConfigurationService
     {
         var existing = _context.LedgerAccounts.ToDictionary(account => account.Code);
         LedgerAccount Ensure(string code, string nameAr, LedgerAccountType type, AccountNormalBalance normal,
-            bool allowsPosting, string? parentCode = null)
+            bool allowsPosting, string? parentCode = null,
+            FinancialStatementCategory category = FinancialStatementCategory.Unclassified)
         {
-            if (existing.TryGetValue(code, out var found)) return found;
+            if (existing.TryGetValue(code, out var found))
+            {
+                found.FinancialStatementCategory = category;
+                return found;
+            }
             var account = new LedgerAccount
             {
                 Code = code,
                 NameAr = nameAr,
                 Type = type,
                 NormalBalance = normal,
+                FinancialStatementCategory = category,
                 CurrencyCode = "SAR",
                 IsActive = true,
                 AllowsPosting = allowsPosting,
@@ -110,28 +116,28 @@ public sealed class AccountingConfigurationService
 
         Ensure("1000", "الأصول", LedgerAccountType.Asset, AccountNormalBalance.Debit, false);
         Ensure("1100", "الأصول المتداولة", LedgerAccountType.Asset, AccountNormalBalance.Debit, false, "1000");
-        Ensure("1110", "النقدية والبنوك", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100");
-        Ensure("1120", "الذمم المدينة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100");
-        Ensure("1130", "المخزون", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100");
-        Ensure("1140", "ضريبة القيمة المضافة القابلة للاسترداد", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100");
+        Ensure("1110", "النقدية والبنوك", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.Cash);
+        Ensure("1120", "الذمم المدينة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.AccountsReceivable);
+        Ensure("1130", "المخزون", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.Inventory);
+        Ensure("1140", "ضريبة القيمة المضافة القابلة للاسترداد", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.OtherCurrentAsset);
         Ensure("1200", "الأصول البيولوجية", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1000");
         Ensure("1500", "الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Debit, false, "1000");
-        Ensure("1510", "تكلفة الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1500");
-        Ensure("1520", "مجمع إهلاك الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Credit, true, "1500");
+        Ensure("1510", "تكلفة الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1500", FinancialStatementCategory.FixedAssetCost);
+        Ensure("1520", "مجمع إهلاك الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Credit, true, "1500", FinancialStatementCategory.AccumulatedDepreciation);
         Ensure("2000", "الالتزامات", LedgerAccountType.Liability, AccountNormalBalance.Credit, false);
-        Ensure("2100", "الذمم الدائنة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000");
-        Ensure("2110", "رواتب مستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000");
-        Ensure("2120", "استقطاعات رواتب مستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000");
-        Ensure("2200", "ضريبة القيمة المضافة المستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000");
+        Ensure("2100", "الذمم الدائنة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.AccountsPayable);
+        Ensure("2110", "رواتب مستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.SalariesPayable);
+        Ensure("2120", "استقطاعات رواتب مستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.OtherCurrentLiability);
+        Ensure("2200", "ضريبة القيمة المضافة المستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.TaxesPayable);
         Ensure("3000", "حقوق الملكية", LedgerAccountType.Equity, AccountNormalBalance.Credit, false);
-        Ensure("3100", "رأس المال", LedgerAccountType.Equity, AccountNormalBalance.Credit, true, "3000");
-        Ensure("3200", "الأرباح المبقاة", LedgerAccountType.Equity, AccountNormalBalance.Credit, true, "3000");
+        Ensure("3100", "رأس المال", LedgerAccountType.Equity, AccountNormalBalance.Credit, true, "3000", FinancialStatementCategory.Capital);
+        Ensure("3200", "الأرباح المبقاة", LedgerAccountType.Equity, AccountNormalBalance.Credit, true, "3000", FinancialStatementCategory.RetainedEarnings);
         Ensure("4000", "الإيرادات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, false);
-        Ensure("4100", "إيرادات المبيعات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, true, "4000");
+        Ensure("4100", "إيرادات المبيعات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, true, "4000", FinancialStatementCategory.SalesRevenue);
         Ensure("5000", "المصروفات", LedgerAccountType.Expense, AccountNormalBalance.Debit, false);
-        Ensure("5100", "تكلفة المبيعات والمشتريات", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000");
-        Ensure("5200", "مصروف الرواتب", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000");
-        Ensure("5300", "مصروف الإهلاك", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000");
+        Ensure("5100", "تكلفة المبيعات والمشتريات", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.CostOfGoodsSold);
+        Ensure("5200", "مصروف الرواتب", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.SalariesExpense);
+        Ensure("5300", "مصروف الإهلاك", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.DepreciationExpense);
         _context.SaveChanges();
         return existing;
     }

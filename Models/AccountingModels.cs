@@ -2,6 +2,37 @@ namespace FishFarmManager.Models;
 
 public enum LedgerAccountType { Asset, Liability, Equity, Revenue, Expense }
 public enum AccountNormalBalance { Debit, Credit }
+public enum FinancialStatementCategory
+{
+    Unclassified,
+    Cash,
+    AccountsReceivable,
+    Inventory,
+    OtherCurrentAsset,
+    FixedAssetCost,
+    AccumulatedDepreciation,
+    OtherNonCurrentAsset,
+    AccountsPayable,
+    SalariesPayable,
+    TaxesPayable,
+    OtherCurrentLiability,
+    LongTermLoan,
+    OtherLongTermLiability,
+    Capital,
+    RetainedEarnings,
+    OtherEquity,
+    SalesRevenue,
+    OtherRevenue,
+    CostOfGoodsSold,
+    SalariesExpense,
+    DepreciationExpense,
+    UtilitiesExpense,
+    MaintenanceExpense,
+    OtherOperatingExpense,
+    InterestIncome,
+    InterestExpense,
+    IncomeTaxExpense
+}
 public enum FiscalPeriodStatus { Open, Closed }
 public enum JournalEntryStatus { Draft, Approved, Posted, Reversed }
 public enum CostCenterType { Farm, Pond, ProductionCycle, Department, Other }
@@ -39,6 +70,7 @@ public sealed class LedgerAccount
     public string? NameEn { get; set; }
     public LedgerAccountType Type { get; set; }
     public AccountNormalBalance NormalBalance { get; set; }
+    public FinancialStatementCategory FinancialStatementCategory { get; set; }
     public string CurrencyCode { get; set; } = "SAR";
     public bool IsActive { get; set; } = true;
     public bool AllowsPosting { get; set; } = true;

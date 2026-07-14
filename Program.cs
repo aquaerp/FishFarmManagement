@@ -144,6 +144,7 @@ namespace FishFarmManager
             services.AddScoped<SecurityAuditService>();
             services.AddScoped<GeneralLedgerService>();
             services.AddScoped<GeneralLedgerReportingService>();
+            services.AddScoped<GeneralLedgerFinancialStatementService>();
             services.AddScoped<AccountingConfigurationService>();
             services.AddScoped<OperationalPostingService>();
             services.AddScoped<FiscalYearClosingService>();
