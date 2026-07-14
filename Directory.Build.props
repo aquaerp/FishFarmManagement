@@ -4,4 +4,8 @@
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
     <BaseOutputPath>$(Phase0ArtifactsRoot)\$(MSBuildProjectName)-bin\</BaseOutputPath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(AquaFarmIsolatedBuild)' == 'true'">
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).isolated-obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
 </Project>

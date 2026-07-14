@@ -19,6 +19,8 @@ x86/
 bld/
 [Bb]in/
 [Oo]bj/
+.codex-obj/
+.isolated-obj/
 [Ll]og/
 [Ll]ogs/
 

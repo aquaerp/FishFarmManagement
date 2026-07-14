@@ -69,6 +69,7 @@ namespace FishFarmManager.Data
 
         // Authentication System
         public DbSet<User> Users { get; set; }
+        public DbSet<SecurityAuditEvent> SecurityAuditEvents { get; set; }
 
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
@@ -94,6 +95,7 @@ namespace FishFarmManager.Data
             ConfigurePurchasingSystem(modelBuilder);
             ConfigureVATSystem(modelBuilder);
             ConfigureAuthenticationSystem(modelBuilder);
+            ConfigureSecurityAuditSystem(modelBuilder);
         }
 
         private void ConfigureProductionSystem(ModelBuilder modelBuilder)
@@ -428,6 +430,25 @@ namespace FishFarmManager.Data
                     .WithMany()
                     .HasForeignKey(e => e.EmployeeId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+        }
+
+        private static void ConfigureSecurityAuditSystem(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<SecurityAuditEvent>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.OccurredAtUtc).IsRequired();
+                entity.Property(e => e.Category).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Action).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Outcome).IsRequired().HasMaxLength(30);
+                entity.Property(e => e.ActorUsername).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.SubjectType).HasMaxLength(100);
+                entity.Property(e => e.SubjectId).HasMaxLength(100);
+                entity.Property(e => e.CorrelationId).IsRequired().HasMaxLength(64);
+                entity.Property(e => e.Details).HasMaxLength(1000);
+                entity.HasIndex(e => e.OccurredAtUtc);
+                entity.HasIndex(e => new { e.Category, e.Action });
             });
         }
 

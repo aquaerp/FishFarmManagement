@@ -191,13 +191,56 @@ public sealed class AuthenticationPersistenceTests
             using var command = context.Database.GetDbConnection().CreateCommand();
             context.Database.OpenConnection();
             command.CommandText = "PRAGMA table_info('Users');";
-            using var reader = command.ExecuteReader();
             var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            while (reader.Read()) columns.Add(reader.GetString(1));
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read()) columns.Add(reader.GetString(1));
+            }
 
             Assert.Contains("FailedLoginCount", columns);
             Assert.Contains("LockoutEnd", columns);
             Assert.Contains("MustChangePassword", columns);
+
+            command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='SecurityAuditEvents';";
+            Assert.Equal(1L, Convert.ToInt64(command.ExecuteScalar()));
+            StartupValidationService.ValidateDatabase(context);
+        }
+        finally
+        {
+            if (File.Exists(databasePath)) File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public void SecurityAudit_PersistsStructuredEventWithoutSecrets()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aquafarm-audit-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<FishFarmContext>()
+            .UseSqlite($"Data Source={databasePath};Pooling=False")
+            .Options;
+
+        try
+        {
+            using var context = new FishFarmContext(options);
+            context.Database.Migrate();
+            var service = new SecurityAuditService(context);
+            var auditEvent = service.Record(
+                "Authentication",
+                "Login",
+                "Rejected",
+                "audit_user",
+                subjectType: "User",
+                subjectId: "42",
+                details: "Invalid credentials");
+
+            var persisted = context.SecurityAuditEvents.Single(item => item.Id == auditEvent.Id);
+            Assert.Equal("Authentication", persisted.Category);
+            Assert.Equal("Login", persisted.Action);
+            Assert.Equal("Rejected", persisted.Outcome);
+            Assert.Equal("audit_user", persisted.ActorUsername);
+            Assert.NotEmpty(persisted.CorrelationId);
+            Assert.DoesNotContain("password", persisted.Details!, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

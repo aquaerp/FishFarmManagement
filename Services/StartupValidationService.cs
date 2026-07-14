@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
+using FishFarmManager.Data;
 
 namespace FishFarmManager.Services;
 
@@ -66,6 +68,41 @@ public static class StartupValidationService
         return new StartupValidationResult(databasePath, backupDirectory, warnings);
     }
 
+    public static void ValidateDatabase(FishFarmContext context)
+    {
+        var pendingMigrations = context.Database.GetPendingMigrations().ToArray();
+        if (pendingMigrations.Length != 0)
+        {
+            throw new InvalidOperationException(
+                $"Database schema is not current. Pending migrations: {string.Join(", ", pendingMigrations)}");
+        }
+
+        var connection = context.Database.GetDbConnection();
+        var shouldClose = connection.State != System.Data.ConnectionState.Open;
+        if (shouldClose)
+        {
+            connection.Open();
+        }
+
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA integrity_check;";
+            var result = Convert.ToString(command.ExecuteScalar());
+            if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Database integrity validation failed.");
+            }
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                connection.Close();
+            }
+        }
+    }
+
     private static void EnsureWritableDirectory(string path, string purpose)
     {
         Directory.CreateDirectory(path);
@@ -87,4 +124,3 @@ public static class StartupValidationService
         }
     }
 }
-

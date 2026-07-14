@@ -47,6 +47,7 @@ namespace FishFarmManager
                     // تطبيق الـ Migrations بدون حذف قاعدة البيانات
                     LoggingService.LogInfo("بدء تطبيق Migrations...");
                     context.Database.Migrate();
+                    StartupValidationService.ValidateDatabase(context);
                     LoggingService.LogInfo("✅ تم تطبيق Migrations بنجاح");
                     
                     var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
@@ -140,6 +141,7 @@ namespace FishFarmManager
             services.AddScoped<NotificationService>();
             services.AddScoped<BackupService>();
             services.AddScoped<AuthenticationService>();
+            services.AddScoped<SecurityAuditService>();
             services.AddHttpClient();
 
             // إضافة النماذج

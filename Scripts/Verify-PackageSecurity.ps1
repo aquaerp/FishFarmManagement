@@ -3,6 +3,13 @@ param()
 
 $ErrorActionPreference = "Stop"
 $solution = Join-Path $PSScriptRoot "..\FishFarmManager.sln"
+$env:AquaFarmIsolatedBuild = "true"
+dotnet restore $solution --force-evaluate -p:AquaFarmIsolatedBuild=true
+if ($LASTEXITCODE -ne 0)
+{
+    exit $LASTEXITCODE
+}
+
 $output = dotnet list $solution package --vulnerable --include-transitive 2>&1 | Out-String
 $exitCode = $LASTEXITCODE
 $output | Write-Host

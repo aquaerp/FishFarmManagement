@@ -17,6 +17,7 @@ namespace FishFarmManager.Services
     public class AuthenticationService
     {
         private readonly FishFarmContext _context;
+        private readonly SecurityAuditService _auditService;
         private static User? _currentUser;
         private static DateTime _lastActivityTime = DateTime.Now;
         
@@ -34,6 +35,7 @@ namespace FishFarmManager.Services
         public AuthenticationService(FishFarmContext context)
         {
             _context = context;
+            _auditService = new SecurityAuditService(context);
         }
 
         #region Properties
@@ -88,6 +90,7 @@ namespace FishFarmManager.Services
                 if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 {
                     LoggingService.LogWarning("محاولة تسجيل دخول ببيانات فارغة");
+                    RecordAuditSafe("Authentication", "Login", "Rejected", username, details: "Missing credentials");
                     return false;
                 }
 
@@ -108,12 +111,14 @@ namespace FishFarmManager.Services
                 {
                     RecordFailedAttempt(username);
                     LoggingService.LogWarning($"⚠️ محاولة تسجيل دخول فاشلة: مستخدم غير موجود أو معطل - {username}");
+                    RecordAuditSafe("Authentication", "Login", "Rejected", username, details: "Unknown or inactive account");
                     return false;
                 }
 
                 if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTime.UtcNow)
                 {
                     LoggingService.LogWarning("Account {Username} is locked until {LockoutEnd}", username, user.LockoutEnd);
+                    RecordAuditSafe("Authentication", "Login", "Locked", username, user.UserId, "User", user.UserId.ToString());
                     return false;
                 }
 
@@ -130,6 +135,7 @@ namespace FishFarmManager.Services
                     RecordFailedAttempt(username);
                     RecordPersistentFailedAttempt(user);
                     LoggingService.LogWarning($"⚠️ محاولة تسجيل دخول فاشلة: كلمة مرور خاطئة - {username}");
+                    RecordAuditSafe("Authentication", "Login", "Rejected", username, user.UserId, "User", user.UserId.ToString(), "Invalid credentials");
                     return false;
                 }
 
@@ -152,6 +158,7 @@ namespace FishFarmManager.Services
                 _context.SaveChanges();
 
                 LoggingService.LogInfo($"✅ تسجيل دخول ناجح: {username} ({user.Role})");
+                RecordAuditSafe("Authentication", "Login", "Succeeded", username, user.UserId, "User", user.UserId.ToString(), $"Role={user.Role}");
                 return true;
             }
             catch (Exception ex)
@@ -168,8 +175,9 @@ namespace FishFarmManager.Services
         {
             if (_currentUser != null)
             {
+                RecordAuditSafe("Authentication", "Logout", "Succeeded", _currentUser.Username, _currentUser.UserId, "User", _currentUser.UserId.ToString());
                 LoggingService.LogInfo($"📤 تسجيل خروج: {_currentUser.Username}");
-            _currentUser = null;
+                _currentUser = null;
                 _lastActivityTime = DateTime.Now;
             }
         }
@@ -261,6 +269,7 @@ namespace FishFarmManager.Services
                 _context.SaveChanges();
 
                 LoggingService.LogInfo($"✅ تم إنشاء مستخدم جديد: {username} بدور {role}");
+                RecordAuditSafe("Administration", "CreateUser", "Succeeded", CurrentUsername, CurrentUser?.UserId, "User", user.UserId.ToString(), $"Role={role}");
                 return true;
             }
             catch (Exception ex)
@@ -309,6 +318,7 @@ namespace FishFarmManager.Services
                 _context.SaveChanges();
                 
                 LoggingService.LogInfo($"🔑 تم تغيير كلمة المرور: {user.Username}");
+                RecordAuditSafe("Authentication", "ChangePassword", "Succeeded", CurrentUsername, CurrentUser?.UserId, "User", user.UserId.ToString());
                 return true;
             }
             catch (Exception ex)
@@ -353,6 +363,7 @@ namespace FishFarmManager.Services
                 _context.SaveChanges();
                 
                 LoggingService.LogInfo($"🔑 تمت إعادة تعيين كلمة المرور بواسطة المدير: {user.Username}");
+                RecordAuditSafe("Administration", "ResetPassword", "Succeeded", CurrentUsername, CurrentUser?.UserId, "User", user.UserId.ToString());
                 return true;
             }
             catch (Exception ex)
@@ -387,6 +398,7 @@ namespace FishFarmManager.Services
                 _context.SaveChanges();
                 
                 LoggingService.LogInfo($"👤 تم {(isActive ? "تفعيل" : "تعطيل")} المستخدم: {user.Username}");
+                RecordAuditSafe("Administration", isActive ? "ActivateUser" : "DeactivateUser", "Succeeded", CurrentUsername, CurrentUser?.UserId, "User", user.UserId.ToString());
                 return true;
             }
             catch (Exception ex)
@@ -716,6 +728,26 @@ namespace FishFarmManager.Services
                 user.LockoutEnd = DateTime.UtcNow.AddMinutes(LockoutMinutes);
             }
             _context.SaveChanges();
+        }
+
+        private void RecordAuditSafe(
+            string category,
+            string action,
+            string outcome,
+            string actorUsername,
+            int? actorUserId = null,
+            string? subjectType = null,
+            string? subjectId = null,
+            string? details = null)
+        {
+            try
+            {
+                _auditService.Record(category, action, outcome, actorUsername, actorUserId, subjectType, subjectId, details);
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Failed to persist security audit event {Category}/{Action}", category, action);
+            }
         }
 
         private void ClearPersistentFailedAttempts(User user)
