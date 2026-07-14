@@ -120,10 +120,6 @@ namespace FishFarmManager.Controls
         /// <summary>
         /// Constructor بدون Dependency Injection (يُنشئ AutocompleteService داخلياً)
         /// </summary>
-        public SmartAutoCompleteTextBox() : this(new AutocompleteService(new Data.FishFarmContext()))
-        {
-        }
-
         #endregion
 
         #region Initialization

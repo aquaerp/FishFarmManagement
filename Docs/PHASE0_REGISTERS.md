@@ -12,8 +12,8 @@
 | BLD-001 | بناء الحل Release من بيئة نظيفة | Must | القائد التقني | G0 | DN |
 | TST-001 | اكتشاف وتشغيل اختبار آلي فعلي | Must | QA | G0 | DN |
 | ARC-001 | حصر SQLite بمحطة واحدة حتى قرار الخادم | Must | المعماري | G0 | DN |
-| SEC-001 | إزالة كلمات المرور والقيم الافتراضية من الإنتاج | Must | Backend | G1 | NS |
-| BAK-001 | نسخ قاعدة التشغيل الفعلية واستعادة متسقة | Must | Backend | G1 | NS |
+| SEC-001 | إزالة كلمات المرور والقيم الافتراضية من الإنتاج | Must | Backend | G1 | DN |
+| BAK-001 | نسخ قاعدة التشغيل الفعلية واستعادة متسقة | Must | Backend | G1 | DN |
 | ACC-001 | دليل حسابات وفترات مالية | Must | المحاسب/Backend | G2 | NS |
 | ACC-002 | قيود مزدوجة متوازنة وغير قابلة للتعديل بعد الترحيل | Must | Backend | G2 | NS |
 | ACC-003 | الأستاذ والميزان والقوائم من القيود فقط | Must | Backend | G2 | NS |
@@ -58,7 +58,7 @@
 | BLD-001 | خط أساس البناء | `FishFarmManager.sln` | 0 أخطاء/18 تحذيراً | DN |
 | TST-001 | xUnit | `DatabaseSmokeTests` | 1/1 ناجح | DN |
 | ARC-001 | ADR-001 | `Program.cs` | ADR | DN مرحلياً |
-| BAK-001 | ADR لاحق | `BackupService.cs` | 3 استعادات | NS |
+| BAK-001 | SQLite Online Backup مشفر | `SecureBackupService.cs` | 3/3 استعادات ناجحة | DN |
 | ACC-001..004 | تصميم G2 | غير موجود | اعتماد محاسب | NS |
 | ZAT-001..003 | مواصفات ZATCA | غير مثبت | validator/sandbox | NS |
 | UAT-001 | خطة UAT | غير موجود | محاضر قبول | NS |

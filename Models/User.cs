@@ -36,6 +36,12 @@ namespace FishFarmManager.Models
 
         public DateTime? LastLoginAt { get; set; }
 
+        public int FailedLoginCount { get; set; }
+        public DateTime? LastFailedLoginAt { get; set; }
+        public DateTime? LockoutEnd { get; set; }
+        public DateTime? PasswordChangedAt { get; set; }
+        public bool MustChangePassword { get; set; }
+
         [MaxLength(50)]
         public string CreatedBy { get; set; } = string.Empty;
 

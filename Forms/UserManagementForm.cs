@@ -341,18 +341,7 @@ namespace FishFarmManager.Forms
 
                 if (!users.Any())
                 {
-                    // محاولة إضافة البيانات التجريبية إذا لم تكن موجودة
-                    LoggingService.LogInfo("لا توجد بيانات مستخدمين - محاولة إضافة البيانات التجريبية");
-                    try
-                    {
-                        DataSeeder.SeedData(_context);
-                        users = _context.Users.OrderBy(u => u.Username).ToList();
-                    }
-                    catch (Exception seedEx)
-                    {
-                        LoggingService.LogError(seedEx, "فشل في إضافة البيانات التجريبية");
-                        MessageBox.Show("لا توجد بيانات مستخدمين ولا يمكن إضافة البيانات التجريبية", "تحذير", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    LoggingService.LogWarning("No users matched the selected filters.");
                 }
 
                 _usersGridView.DataSource = users;

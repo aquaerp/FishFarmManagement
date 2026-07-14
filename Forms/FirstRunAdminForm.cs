@@ -162,6 +162,8 @@ namespace FishFarmManager.Forms
                 Role = UserRole.Admin,
                 IsActive = true,
                 PasswordHash = AuthenticationService.HashPassword(password),
+                PasswordChangedAt = DateTime.UtcNow,
+                MustChangePassword = false,
                 CreatedAt = DateTime.Now,
                 CreatedBy = "FirstRun"
             };

@@ -316,12 +316,26 @@ namespace FishFarmManager.Data
 
             LoggingService.LogInfo("👤 إنشاء المستخدمين الافتراضيين...");
 
+            var demoPassword = Environment.GetEnvironmentVariable("AQUAFARM_DEMO_PASSWORD");
+            if (string.IsNullOrWhiteSpace(demoPassword))
+            {
+                throw new InvalidOperationException(
+                    "AQUAFARM_DEMO_PASSWORD must be supplied explicitly when demo seeding is enabled.");
+            }
+
+            var validation = AuthenticationService.ValidatePasswordComplexity(demoPassword);
+            if (!validation.IsValid)
+            {
+                throw new InvalidOperationException("AQUAFARM_DEMO_PASSWORD does not meet the password policy.");
+            }
+
+            var demoPasswordHash = AuthenticationService.HashPassword(demoPassword);
             var users = new[]
             {
                 new User
                 {
                     Username = "admin",
-                    PasswordHash = HashPassword("admin123"),
+                    PasswordHash = demoPasswordHash,
                     FullName = "مدير النظام",
                     Email = "admin@aquafarm.com",
                     Role = UserRole.Admin,
@@ -332,7 +346,7 @@ namespace FishFarmManager.Data
                 new User
                 {
                     Username = "manager",
-                    PasswordHash = HashPassword("manager123"),
+                    PasswordHash = demoPasswordHash,
                     FullName = "مدير المزرعة",
                     Email = "manager@aquafarm.com",
                     Role = UserRole.Manager,
@@ -343,7 +357,7 @@ namespace FishFarmManager.Data
                 new User
                 {
                     Username = "accountant",
-                    PasswordHash = HashPassword("acc123"),
+                    PasswordHash = demoPasswordHash,
                     FullName = "محاسب رئيسي",
                     Email = "accountant@aquafarm.com",
                     Role = UserRole.Accountant,
@@ -354,7 +368,7 @@ namespace FishFarmManager.Data
                 new User
                 {
                     Username = "production",
-                    PasswordHash = HashPassword("prod123"),
+                    PasswordHash = demoPasswordHash,
                     FullName = "مشرف إنتاج",
                     Email = "production@aquafarm.com",
                     Role = UserRole.ProductionStaff,
@@ -365,7 +379,7 @@ namespace FishFarmManager.Data
                 new User
                 {
                     Username = "sales",
-                    PasswordHash = HashPassword("sales123"),
+                    PasswordHash = demoPasswordHash,
                     FullName = "موظف مبيعات",
                     Email = "sales@aquafarm.com",
                     Role = UserRole.SalesStaff,

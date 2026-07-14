@@ -22,3 +22,14 @@ jobs:
         shell: pwsh
         run: ./Scripts/Verify-G0.ps1 -ArtifactsRoot "${{ runner.temp }}\AquaFarm-G0"
 
+      - name: Audit NuGet vulnerabilities
+        shell: pwsh
+        run: ./Scripts/Verify-PackageSecurity.ps1
+
+      - name: Check embedded-secret policy
+        shell: pwsh
+        run: ./Scripts/Verify-NoEmbeddedSecrets.ps1
+
+      - name: Check Release package policy
+        shell: pwsh
+        run: ./Scripts/Verify-ReleasePolicy.ps1 -ArtifactsRoot "${{ runner.temp }}\AquaFarm-G0"

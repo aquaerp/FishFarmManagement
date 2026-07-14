@@ -464,7 +464,7 @@ namespace FishFarmManager.Forms
             try
             {
                 var openFileDialog = new OpenFileDialog();
-                openFileDialog.Filter = "Database files (*.db)|*.db";
+                openFileDialog.Filter = "AquaFarm encrypted backup (*.afbackup)|*.afbackup|Legacy database backup (*.db)|*.db";
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     var result = await _backupService.RestoreBackup(openFileDialog.FileName);

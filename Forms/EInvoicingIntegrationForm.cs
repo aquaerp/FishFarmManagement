@@ -445,7 +445,7 @@ namespace FishFarmManager.Forms
                 }
                 
                 config.ZATCAApiEndpoint = _apiUrlTextBox.Text.Trim();
-                config.ZATCAApiKey = _apiKeyTextBox.Text.Trim();
+                config.ZATCAApiKey = SensitiveDataProtection.EncryptApiKey(_apiKeyTextBox.Text.Trim());
                 config.DeviceId = _deviceIdTextBox.Text.Trim();
                 config.EnableZATCAIntegration = true;
                 config.UpdatedAt = DateTime.Now;
@@ -1079,7 +1079,7 @@ namespace FishFarmManager.Forms
                 if (_vatConfig != null)
                 {
                     _apiUrlTextBox.Text = _vatConfig.ZATCAApiEndpoint ?? "";
-                    _apiKeyTextBox.Text = _vatConfig.ZATCAApiKey ?? "";
+                    _apiKeyTextBox.Text = SensitiveDataProtection.DecryptDatabaseField(_vatConfig.ZATCAApiKey ?? "");
                     _deviceIdTextBox.Text = _vatConfig.DeviceId ?? "";
                     
                     AddLog("✅ تم تحميل الإعدادات المحفوظة");

@@ -9,18 +9,6 @@ namespace FishFarmManager.Data
         {
         }
 
-        // Default constructor for forms that don't inject dependencies
-        public FishFarmContext() : base(GetDefaultOptions())
-        {
-        }
-
-        private static DbContextOptions<FishFarmContext> GetDefaultOptions()
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<FishFarmContext>();
-            optionsBuilder.UseSqlite("Data Source=fishfarm.db");
-            return optionsBuilder.Options;
-        }
-
         // Production System
         public DbSet<ProductionCycle> ProductionCycles { get; set; }
         public DbSet<ProductionCyclePond> ProductionCyclePonds { get; set; }
@@ -422,6 +410,12 @@ namespace FishFarmManager.Data
                 
                 entity.Property(e => e.Role)
                     .IsRequired();
+
+                entity.Property(e => e.FailedLoginCount)
+                    .HasDefaultValue(0);
+
+                entity.Property(e => e.MustChangePassword)
+                    .HasDefaultValue(false);
                 
                 entity.Property(e => e.CreatedBy)
                     .HasMaxLength(50);

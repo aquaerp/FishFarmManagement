@@ -24,6 +24,10 @@ namespace FishFarmManager
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (_, args) => ShowUnexpectedError(args.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+                ShowUnexpectedError(args.ExceptionObject as Exception ?? new Exception("Unknown fatal error"));
 
             try
             {
@@ -33,7 +37,7 @@ namespace FishFarmManager
                 var services = new ServiceCollection();
                 ConfigureServices(services);
 
-                var serviceProvider = services.BuildServiceProvider();
+                using var serviceProvider = services.BuildServiceProvider();
 
                 // إنشاء قاعدة البيانات إذا لم تكن موجودة
                 using (var scope = serviceProvider.CreateScope())
@@ -49,9 +53,13 @@ namespace FishFarmManager
                     var seedDemoData = configuration.GetValue("AppSettings:SeedDemoData", false);
                     if (seedDemoData)
                     {
+#if DEBUG
                         // Demo data is useful during development, but must be disabled for production releases.
                         LoggingService.LogInfo("Demo data seeding is enabled.");
                         DataSeeder.SeedData(context);
+#else
+                        throw new InvalidOperationException("Demo data is not included in Release builds.");
+#endif
                     }
                     else
                     {
@@ -93,7 +101,7 @@ namespace FishFarmManager
             catch (Exception ex)
             {
                 LoggingService.LogFatal(ex, "خطأ فادح أثناء تشغيل التطبيق");
-                MessageBox.Show("حدث خطأ أثناء تشغيل التطبيق: " + ex.Message, "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowUnexpectedError(ex);
             }
             finally
             {
@@ -110,11 +118,18 @@ namespace FishFarmManager
                 .AddEnvironmentVariables("AQUAFARM_")
                 .Build();
 
+            var startupValidation = StartupValidationService.ValidateAndPrepare(configuration);
+            foreach (var warning in startupValidation.Warnings)
+            {
+                LoggingService.LogWarning("Startup validation warning: {Warning}", warning);
+            }
+
             services.AddSingleton<IConfiguration>(configuration);
+            services.AddSingleton(startupValidation);
 
             // إضافة DbContext - IMPORTANT: Use Transient to avoid disposed context errors
             // Each form gets its own context instance that it can safely dispose
-            var connectionString = ResolveConnectionString(configuration);
+            var connectionString = RuntimePaths.ResolveConnectionString(configuration);
             services.AddDbContext<FishFarmContext>(
                 options => options.UseSqlite(connectionString),
                 ServiceLifetime.Transient  // ← Changed from Scoped to Transient
@@ -177,28 +192,15 @@ namespace FishFarmManager
             services.AddTransient<SettingsForm>();
         }
 
-        private static string ResolveConnectionString(IConfiguration configuration)
+        private static void ShowUnexpectedError(Exception exception)
         {
-            var configured = configuration.GetConnectionString("DefaultConnection");
-            if (string.IsNullOrWhiteSpace(configured))
-            {
-                var appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FishFarmManager");
-                return $"Data Source={Path.Combine(appDataPath, "FishFarm.db")}";
-            }
-
-            var expanded = Environment.ExpandEnvironmentVariables(configured);
-            const string dataSourcePrefix = "Data Source=";
-            if (expanded.StartsWith(dataSourcePrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                var dbPath = expanded.Substring(dataSourcePrefix.Length).Trim();
-                var dbDirectory = Path.GetDirectoryName(dbPath);
-                if (!string.IsNullOrWhiteSpace(dbDirectory))
-                {
-                    Directory.CreateDirectory(dbDirectory);
-                }
-            }
-
-            return expanded;
+            var trackingId = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+            LoggingService.LogError(exception, "Unhandled application error. Tracking ID: {TrackingId}", trackingId);
+            MessageBox.Show(
+                $"حدث خطأ غير متوقع. رقم التتبع: {trackingId}",
+                "خطأ",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
     }
 }

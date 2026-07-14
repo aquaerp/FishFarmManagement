@@ -92,7 +92,8 @@ namespace FishFarmManager.Services
                 }
 
                 // ✅ 2. Check Rate Limiting
-                if (IsAccountLocked(username))
+                if (IsAccountLocked(username)
+                    && !_context.Users.Any(user => user.Username.ToLower() == username.ToLower()))
                 {
                     LoggingService.LogWarning($"🚫 الحساب مقفل: {username} بسبب محاولات متعددة فاشلة");
                     return false;
@@ -110,18 +111,37 @@ namespace FishFarmManager.Services
                     return false;
                 }
 
+                if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTime.UtcNow)
+                {
+                    LoggingService.LogWarning("Account {Username} is locked until {LockoutEnd}", username, user.LockoutEnd);
+                    return false;
+                }
+
+                if (user.LockoutEnd.HasValue)
+                {
+                    ClearPersistentFailedAttempts(user);
+                }
+
                 // ✅ 4. Verify Password (BCrypt)
                 bool isPasswordValid = VerifyPassword(password, user.PasswordHash);
                 
                 if (!isPasswordValid)
                 {
                     RecordFailedAttempt(username);
+                    RecordPersistentFailedAttempt(user);
                     LoggingService.LogWarning($"⚠️ محاولة تسجيل دخول فاشلة: كلمة مرور خاطئة - {username}");
                     return false;
                 }
 
                 // ✅ 5. Success - Clear failed attempts
                 ClearFailedAttempts(username);
+                ClearPersistentFailedAttempts(user);
+
+                if (!user.PasswordHash.StartsWith("$2", StringComparison.Ordinal))
+                {
+                    user.PasswordHash = HashPassword(password);
+                    user.PasswordChangedAt = DateTime.UtcNow;
+                }
                 
                 // ✅ 6. Set Current User
                 _currentUser = user;
@@ -233,6 +253,7 @@ namespace FishFarmManager.Services
                     EmployeeId = employeeId,
                     IsActive = true,
                     CreatedAt = DateTime.Now,
+                    PasswordChangedAt = DateTime.UtcNow,
                     CreatedBy = CurrentUsername
                 };
 
@@ -280,6 +301,8 @@ namespace FishFarmManager.Services
 
                 // ✅ Update password (BCrypt)
                 user.PasswordHash = HashPassword(newPassword);
+                user.PasswordChangedAt = DateTime.UtcNow;
+                user.MustChangePassword = false;
                 user.UpdatedAt = DateTime.Now;
                 user.UpdatedBy = CurrentUsername;
 
@@ -322,6 +345,8 @@ namespace FishFarmManager.Services
                 }
 
                 user.PasswordHash = HashPassword(newPassword);
+                user.PasswordChangedAt = DateTime.UtcNow;
+                user.MustChangePassword = true;
                 user.UpdatedAt = DateTime.Now;
                 user.UpdatedBy = CurrentUsername;
 
@@ -680,6 +705,25 @@ namespace FishFarmManager.Services
                 return MaxLoginAttempts;
 
             return Math.Max(0, MaxLoginAttempts - _loginAttempts[key].Count);
+        }
+
+        private void RecordPersistentFailedAttempt(User user)
+        {
+            user.FailedLoginCount++;
+            user.LastFailedLoginAt = DateTime.UtcNow;
+            if (user.FailedLoginCount >= MaxLoginAttempts)
+            {
+                user.LockoutEnd = DateTime.UtcNow.AddMinutes(LockoutMinutes);
+            }
+            _context.SaveChanges();
+        }
+
+        private void ClearPersistentFailedAttempts(User user)
+        {
+            user.FailedLoginCount = 0;
+            user.LastFailedLoginAt = null;
+            user.LockoutEnd = null;
+            _context.SaveChanges();
         }
 
         /// <summary>
