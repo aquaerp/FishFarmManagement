@@ -80,6 +80,9 @@ namespace FishFarmManager.Data
         public DbSet<JournalEntryLine> JournalEntryLines { get; set; }
         public DbSet<AccountingSequence> AccountingSequences { get; set; }
         public DbSet<AccountingAuditEvent> AccountingAuditEvents { get; set; }
+        public DbSet<AccountingConfiguration> AccountingConfigurations { get; set; }
+        public DbSet<PostingMapping> PostingMappings { get; set; }
+        public DbSet<OperationalPostingRecord> OperationalPostingRecords { get; set; }
 
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
@@ -560,6 +563,37 @@ namespace FishFarmManager.Data
                 entity.Property(e => e.AfterJson).HasMaxLength(8000);
                 entity.Property(e => e.CorrelationId).IsRequired().HasMaxLength(64);
                 entity.HasIndex(e => new { e.EntityType, e.EntityId, e.OccurredAtUtc });
+            });
+
+            modelBuilder.Entity<AccountingConfiguration>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ApprovedBy).HasMaxLength(100);
+                entity.HasIndex(e => new { e.Name, e.Version }).IsUnique();
+            });
+
+            modelBuilder.Entity<PostingMapping>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.AccountingConfigurationId, e.EventType, e.Component }).IsUnique();
+                entity.HasOne(e => e.AccountingConfiguration).WithMany(e => e.PostingMappings)
+                    .HasForeignKey(e => e.AccountingConfigurationId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.LedgerAccount).WithMany()
+                    .HasForeignKey(e => e.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<OperationalPostingRecord>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.SourceEntityType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.SourceEntityId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => new { e.EventType, e.SourceEntityType, e.SourceEntityId }).IsUnique();
+                entity.HasIndex(e => e.JournalEntryId).IsUnique();
+                entity.HasOne(e => e.JournalEntry).WithMany()
+                    .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
             });
         }
 

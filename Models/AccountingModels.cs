@@ -5,6 +5,17 @@ public enum AccountNormalBalance { Debit, Credit }
 public enum FiscalPeriodStatus { Open, Closed }
 public enum JournalEntryStatus { Draft, Approved, Posted, Reversed }
 public enum CostCenterType { Farm, Pond, ProductionCycle, Department, Other }
+public enum AccountingConfigurationStatus { Draft, Approved, Retired }
+public enum PostingEventType { SalesCompleted, PurchaseReceived }
+public enum PostingComponent
+{
+    AccountsReceivable,
+    SalesRevenue,
+    OutputVat,
+    InventoryOrExpense,
+    InputVat,
+    AccountsPayable
+}
 
 public sealed class LedgerAccount
 {
@@ -117,4 +128,41 @@ public sealed class AccountingAuditEvent
     public string? BeforeJson { get; set; }
     public string? AfterJson { get; set; }
     public string CorrelationId { get; set; } = string.Empty;
+}
+
+public sealed class AccountingConfiguration
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Version { get; set; }
+    public AccountingConfigurationStatus Status { get; set; } = AccountingConfigurationStatus.Draft;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public DateTime? ApprovedAtUtc { get; set; }
+    public string? ApprovedBy { get; set; }
+    public ICollection<PostingMapping> PostingMappings { get; set; } = new List<PostingMapping>();
+}
+
+public sealed class PostingMapping
+{
+    public int Id { get; set; }
+    public int AccountingConfigurationId { get; set; }
+    public AccountingConfiguration AccountingConfiguration { get; set; } = null!;
+    public PostingEventType EventType { get; set; }
+    public PostingComponent Component { get; set; }
+    public int LedgerAccountId { get; set; }
+    public LedgerAccount LedgerAccount { get; set; } = null!;
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class OperationalPostingRecord
+{
+    public long Id { get; set; }
+    public PostingEventType EventType { get; set; }
+    public string SourceEntityType { get; set; } = string.Empty;
+    public string SourceEntityId { get; set; } = string.Empty;
+    public long JournalEntryId { get; set; }
+    public JournalEntry JournalEntry { get; set; } = null!;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
 }

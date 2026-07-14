@@ -63,7 +63,9 @@ public sealed class GeneralLedgerService
             throw new InvalidOperationException("Journal description and source are required.");
 
         JournalBalanceValidator.Validate(request.Lines);
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         var period = _context.FiscalPeriods.Include(item => item.FiscalYear)
             .SingleOrDefault(item => item.Id == request.FiscalPeriodId)
             ?? throw new InvalidOperationException("The fiscal period does not exist.");
@@ -112,7 +114,7 @@ public sealed class GeneralLedgerService
         _context.SaveChanges();
         AddAudit(entry.Id, "CreateDraft", actorUsername, reason, null, Snapshot(entry));
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return entry;
     }
 

@@ -170,6 +170,80 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Equal(ledgerTotals.Sum(line => line.Credit), report.TotalCredit);
     }
 
+    [Fact]
+    public void OperationalPosting_RejectsUnapprovedPostingConfiguration()
+    {
+        using var database = LedgerTestDatabase.Create();
+        new AccountingConfigurationService(database.Context).CreatePilotDraft("configuration-owner");
+        var orderId = database.SeedCompletedSalesOrder(115m, 15m);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            new OperationalPostingService(database.Context).CreateSalesCompletionDraft(
+                orderId, database.PeriodId, "accounting-user", "Transfer completed sale"));
+    }
+
+    [Fact]
+    public void SalesPosting_UsesApprovedMapAndCannotBeTransferredTwice()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var configurationService = new AccountingConfigurationService(database.Context);
+        var configuration = configurationService.CreatePilotDraft("configuration-owner");
+        configurationService.Approve(configuration.Id, "independent-accountant", "Pilot map reviewed");
+        var orderId = database.SeedCompletedSalesOrder(115m, 15m);
+        var posting = new OperationalPostingService(database.Context);
+
+        var entry = posting.CreateSalesCompletionDraft(
+            orderId, database.PeriodId, "accounting-user", "Transfer completed sale");
+        var lines = database.Context.JournalEntryLines.AsNoTracking()
+            .Where(line => line.JournalEntryId == entry.Id)
+            .Select(line => new { line.LedgerAccount.Code, line.Debit, line.Credit })
+            .OrderBy(line => line.Code).ToArray();
+
+        Assert.Equal(JournalEntryStatus.Draft, entry.Status);
+        Assert.Contains(lines, line => line.Code == "1120" && line.Debit == 115m);
+        Assert.Contains(lines, line => line.Code == "4100" && line.Credit == 100m);
+        Assert.Contains(lines, line => line.Code == "2200" && line.Credit == 15m);
+        Assert.Single(database.Context.OperationalPostingRecords);
+        Assert.Throws<InvalidOperationException>(() => posting.CreateSalesCompletionDraft(
+            orderId, database.PeriodId, "accounting-user", "Duplicate transfer"));
+        Assert.Single(database.Context.JournalEntries);
+    }
+
+    [Fact]
+    public void PurchasePosting_SeparatesRecoverableVatAndPayable()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var configurationService = new AccountingConfigurationService(database.Context);
+        var configuration = configurationService.CreatePilotDraft("configuration-owner");
+        configurationService.Approve(configuration.Id, "independent-accountant", "Pilot map reviewed");
+        var receivingId = database.SeedApprovedPurchaseReceiving(230m, 30m);
+
+        var entry = new OperationalPostingService(database.Context).CreatePurchaseReceiptDraft(
+            receivingId, database.PeriodId, "accounting-user", "Transfer received purchase");
+        var lines = database.Context.JournalEntryLines.AsNoTracking()
+            .Where(line => line.JournalEntryId == entry.Id)
+            .Select(line => new { line.LedgerAccount.Code, line.Debit, line.Credit })
+            .ToArray();
+
+        Assert.Contains(lines, line => line.Code == "1130" && line.Debit == 200m);
+        Assert.Contains(lines, line => line.Code == "1140" && line.Debit == 30m);
+        Assert.Contains(lines, line => line.Code == "2100" && line.Credit == 230m);
+        Assert.Equal(lines.Sum(line => line.Debit), lines.Sum(line => line.Credit));
+    }
+
+    [Fact]
+    public void ApprovedPostingMap_IsImmutableAtDatabaseLevel()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var configurationService = new AccountingConfigurationService(database.Context);
+        var configuration = configurationService.CreatePilotDraft("configuration-owner");
+        configurationService.Approve(configuration.Id, "independent-accountant", "Pilot map reviewed");
+        var mapping = database.Context.PostingMappings.First();
+        mapping.IsActive = false;
+
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
     private sealed class LedgerTestDatabase : IDisposable
     {
         private readonly string _databasePath;
@@ -242,6 +316,77 @@ public sealed class Phase2GeneralLedgerTests
             PeriodId = period.Id;
             DebitAccountId = debit.Id;
             CreditAccountId = credit.Id;
+        }
+
+        public int SeedCompletedSalesOrder(decimal total, decimal vat)
+        {
+            var customer = new Customer
+            {
+                Name = "Accounting Test Customer",
+                Type = CustomerType.Wholesale,
+                Status = CustomerStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            };
+            var order = new SalesOrder
+            {
+                OrderNumber = $"SO-{Guid.NewGuid():N}",
+                OrderDate = new DateTime(2026, 1, 15),
+                Customer = customer,
+                Status = SalesOrderStatus.Completed,
+                SubTotal = total - vat,
+                VATAmount = vat,
+                TotalAmount = total,
+                RemainingAmount = total,
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(order);
+            Context.SaveChanges();
+            return order.Id;
+        }
+
+        public int SeedApprovedPurchaseReceiving(decimal total, decimal vat)
+        {
+            var supplier = new Supplier
+            {
+                Name = "Accounting Test Supplier",
+                Type = SupplierType.Feed,
+                Status = SupplierStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            };
+            var order = new PurchaseOrder
+            {
+                OrderNumber = $"PO-{Guid.NewGuid():N}",
+                OrderDate = new DateTime(2026, 1, 15),
+                ExpectedDeliveryDate = new DateTime(2026, 1, 20),
+                ActualDeliveryDate = new DateTime(2026, 1, 20),
+                Supplier = supplier,
+                Status = PurchaseOrderStatus.Received,
+                IsReceived = true,
+                SubTotal = total - vat,
+                AmountAfterDiscount = total - vat,
+                VATAmount = vat,
+                Total = total,
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(order);
+            Context.SaveChanges();
+            var receiving = new PurchaseReceiving
+            {
+                ReceivingNumber = $"GRN-{Guid.NewGuid():N}",
+                PurchaseOrderId = order.Id,
+                ReceivingDate = new DateTime(2026, 1, 20),
+                IsFullReceiving = true,
+                QualityInspectionCompleted = true,
+                OverallQualityResult = QualityTestResult.Passed,
+                SupplierInvoiceNumber = $"INV-{Guid.NewGuid():N}",
+                SupplierInvoiceAmount = total,
+                ApprovedBy = "purchasing-approver",
+                ApprovedDate = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(receiving);
+            Context.SaveChanges();
+            return receiving.Id;
         }
 
         public void Dispose()
