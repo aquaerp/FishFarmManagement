@@ -142,6 +142,8 @@ namespace FishFarmManager
             services.AddScoped<BackupService>();
             services.AddScoped<AuthenticationService>();
             services.AddScoped<SecurityAuditService>();
+            services.AddScoped<GeneralLedgerService>();
+            services.AddScoped<GeneralLedgerReportingService>();
             services.AddHttpClient();
 
             // إضافة النماذج

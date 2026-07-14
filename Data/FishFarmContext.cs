@@ -71,6 +71,16 @@ namespace FishFarmManager.Data
         public DbSet<User> Users { get; set; }
         public DbSet<SecurityAuditEvent> SecurityAuditEvents { get; set; }
 
+        // General Ledger / Accounting Core
+        public DbSet<LedgerAccount> LedgerAccounts { get; set; }
+        public DbSet<FiscalYear> FiscalYears { get; set; }
+        public DbSet<FiscalPeriod> FiscalPeriods { get; set; }
+        public DbSet<CostCenter> CostCenters { get; set; }
+        public DbSet<JournalEntry> JournalEntries { get; set; }
+        public DbSet<JournalEntryLine> JournalEntryLines { get; set; }
+        public DbSet<AccountingSequence> AccountingSequences { get; set; }
+        public DbSet<AccountingAuditEvent> AccountingAuditEvents { get; set; }
+
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
         public DbSet<TaxInvoiceItem> TaxInvoiceItems { get; set; }
@@ -96,6 +106,7 @@ namespace FishFarmManager.Data
             ConfigureVATSystem(modelBuilder);
             ConfigureAuthenticationSystem(modelBuilder);
             ConfigureSecurityAuditSystem(modelBuilder);
+            ConfigureAccountingSystem(modelBuilder);
         }
 
         private void ConfigureProductionSystem(ModelBuilder modelBuilder)
@@ -449,6 +460,106 @@ namespace FishFarmManager.Data
                 entity.Property(e => e.Details).HasMaxLength(1000);
                 entity.HasIndex(e => e.OccurredAtUtc);
                 entity.HasIndex(e => new { e.Category, e.Action });
+            });
+        }
+
+        private static void ConfigureAccountingSystem(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<LedgerAccount>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Code).IsRequired().HasMaxLength(30);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.NameAr).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.NameEn).HasMaxLength(200);
+                entity.Property(e => e.CurrencyCode).IsRequired().HasMaxLength(3);
+                entity.HasOne(e => e.ParentAccount).WithMany(e => e.Children)
+                    .HasForeignKey(e => e.ParentAccountId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<FiscalYear>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+                entity.HasIndex(e => e.Name).IsUnique();
+            });
+
+            modelBuilder.Entity<FiscalPeriod>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+                entity.HasIndex(e => new { e.FiscalYearId, e.StartDate, e.EndDate }).IsUnique();
+                entity.Property(e => e.ClosedBy).HasMaxLength(100);
+                entity.HasOne(e => e.FiscalYear).WithMany(e => e.Periods)
+                    .HasForeignKey(e => e.FiscalYearId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CostCenter>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Code).IsRequired().HasMaxLength(30);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.ExternalReference).HasMaxLength(100);
+            });
+
+            modelBuilder.Entity<JournalEntry>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.SequenceNumber).IsUnique();
+                entity.Property(e => e.EntryNumber).IsRequired().HasMaxLength(30);
+                entity.HasIndex(e => e.EntryNumber).IsUnique();
+                entity.Property(e => e.Description).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.Source).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Reference).HasMaxLength(100);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ApprovedBy).HasMaxLength(100);
+                entity.Property(e => e.PostedBy).HasMaxLength(100);
+                entity.Property(e => e.ReversedBy).HasMaxLength(100);
+                entity.HasOne(e => e.FiscalPeriod).WithMany(e => e.JournalEntries)
+                    .HasForeignKey(e => e.FiscalPeriodId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ReversalOfJournalEntry).WithMany(e => e.Reversals)
+                    .HasForeignKey(e => e.ReversalOfJournalEntryId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<JournalEntryLine>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.JournalEntryId, e.LineNumber }).IsUnique();
+                entity.Property(e => e.Debit).HasPrecision(18, 2);
+                entity.Property(e => e.Credit).HasPrecision(18, 2);
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.HasOne(e => e.JournalEntry).WithMany(e => e.Lines)
+                    .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.LedgerAccount).WithMany(e => e.JournalLines)
+                    .HasForeignKey(e => e.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.CostCenter).WithMany(e => e.JournalLines)
+                    .HasForeignKey(e => e.CostCenterId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_JournalEntryLine_NonNegative", "CAST(Debit AS NUMERIC) >= 0 AND CAST(Credit AS NUMERIC) >= 0");
+                    table.HasCheckConstraint("CK_JournalEntryLine_OneSide", "(CAST(Debit AS NUMERIC) > 0 AND CAST(Credit AS NUMERIC) = 0) OR (CAST(Credit AS NUMERIC) > 0 AND CAST(Debit AS NUMERIC) = 0)");
+                });
+            });
+
+            modelBuilder.Entity<AccountingSequence>(entity =>
+            {
+                entity.HasKey(e => e.Name);
+                entity.Property(e => e.Name).HasMaxLength(50);
+            });
+
+            modelBuilder.Entity<AccountingAuditEvent>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.EntityType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.EntityId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Action).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ActorUsername).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Reason).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.BeforeJson).HasMaxLength(8000);
+                entity.Property(e => e.AfterJson).HasMaxLength(8000);
+                entity.Property(e => e.CorrelationId).IsRequired().HasMaxLength(64);
+                entity.HasIndex(e => new { e.EntityType, e.EntityId, e.OccurredAtUtc });
             });
         }
 
