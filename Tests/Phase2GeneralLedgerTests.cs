@@ -607,6 +607,88 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }
 
+    [Fact]
+    public void ForeignExchangeRate_ValidatesCurrencyPrecisionAndEvidence()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var service = new ForeignExchangeRateService(database.Context);
+
+        Assert.Throws<InvalidOperationException>(() => service.CreateDraft(new(
+            "SAR", new DateTime(2026, 7, 15), ExchangeRatePurpose.Transaction, 1m,
+            "SAMA", "evidence/sar.pdf"), "rate-maker", "Invalid functional currency"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => service.CreateDraft(new(
+            "USD", new DateTime(2026, 7, 15), ExchangeRatePurpose.Transaction, 3.750000001m,
+            "SAMA", "evidence/usd.pdf"), "rate-maker", "Excess precision"));
+        Assert.Throws<ArgumentException>(() => service.CreateDraft(new(
+            "USD", new DateTime(2026, 7, 15), ExchangeRatePurpose.Transaction, 3.75m,
+            "SAMA", ""), "rate-maker", "Missing evidence"));
+    }
+
+    [Fact]
+    public void ForeignExchangeRate_RequiresIndependentApprovalAndExactDate()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var service = new ForeignExchangeRateService(database.Context);
+        var draft = service.CreateDraft(new(
+            "usd", new DateTime(2026, 7, 15, 14, 30, 0), ExchangeRatePurpose.Transaction, 3.75m,
+            "https://www.sama.gov.sa/rates", "evidence/USD-20260715.pdf"),
+            "rate-maker", "Daily transaction rate");
+
+        Assert.Equal("USD", draft.CurrencyCode);
+        Assert.Equal(new DateTime(2026, 7, 15), draft.RateDate);
+        Assert.Throws<InvalidOperationException>(() =>
+            service.Approve(draft.Id, "rate-maker", "Self approval"));
+
+        service.Approve(draft.Id, "rate-reviewer", "Source and evidence verified");
+        var approved = service.GetApprovedRate("USD", new DateTime(2026, 7, 15), ExchangeRatePurpose.Transaction);
+
+        Assert.Equal(ExchangeRateStatus.Approved, approved.Status);
+        Assert.Equal("rate-reviewer", approved.ApprovedBy);
+        Assert.Equal(2, database.Context.AccountingAuditEvents.Count(item =>
+            item.EntityType == nameof(ForeignExchangeRate) && item.EntityId == draft.Id.ToString()));
+        Assert.Throws<InvalidOperationException>(() => service.GetApprovedRate(
+            "USD", new DateTime(2026, 7, 14), ExchangeRatePurpose.Transaction));
+        Assert.Throws<InvalidOperationException>(() => service.GetApprovedRate(
+            "USD", new DateTime(2026, 7, 15), ExchangeRatePurpose.Closing));
+    }
+
+    [Fact]
+    public void ForeignExchangeRate_NewApprovalRetiresPriorVersion()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var service = new ForeignExchangeRateService(database.Context);
+        var first = service.CreateDraft(new(
+            "EUR", new DateTime(2026, 7, 15), ExchangeRatePurpose.Closing, 4.31m,
+            "SAMA rate publication", "evidence/EUR-v1.pdf"), "maker-one", "Initial closing rate");
+        service.Approve(first.Id, "reviewer-one", "Initial evidence verified");
+        var replacement = service.CreateDraft(new(
+            "EUR", new DateTime(2026, 7, 15), ExchangeRatePurpose.Closing, 4.32m,
+            "Corrected SAMA publication", "evidence/EUR-v2.pdf"), "maker-two", "Correct source error");
+
+        service.Approve(replacement.Id, "reviewer-two", "Correction evidence verified");
+
+        Assert.Equal(2, replacement.Version);
+        Assert.Equal(ExchangeRateStatus.Retired,
+            database.Context.ForeignExchangeRates.AsNoTracking().Single(item => item.Id == first.Id).Status);
+        Assert.Equal(replacement.Id, service.GetApprovedRate(
+            "EUR", new DateTime(2026, 7, 15), ExchangeRatePurpose.Closing).Id);
+    }
+
+    [Fact]
+    public void ForeignExchangeRate_ApprovedValueIsImmutableAtDatabaseLevel()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var service = new ForeignExchangeRateService(database.Context);
+        var rate = service.CreateDraft(new(
+            "GBP", new DateTime(2026, 7, 15), ExchangeRatePurpose.Transaction, 4.85m,
+            "SAMA rate publication", "evidence/GBP.pdf"), "rate-maker", "Transaction rate");
+        service.Approve(rate.Id, "rate-reviewer", "Evidence verified");
+
+        rate.SarPerUnit = 4.90m;
+
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
     private sealed class LedgerTestDatabase : IDisposable
     {
         private readonly string _databasePath;

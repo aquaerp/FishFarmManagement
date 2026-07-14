@@ -38,6 +38,8 @@ public enum JournalEntryStatus { Draft, Approved, Posted, Reversed }
 public enum CostCenterType { Farm, Pond, ProductionCycle, Department, Other }
 public enum AccountingConfigurationStatus { Draft, Approved, Retired }
 public enum AccountingAdjustmentType { Accrual, Deferral, Reclassification, Estimate, Correction, Other }
+public enum ExchangeRateStatus { Draft, Approved, Retired }
+public enum ExchangeRatePurpose { Transaction, Closing }
 public enum PostingEventType
 {
     SalesCompleted,
@@ -230,4 +232,21 @@ public sealed class AccountingAdjustment
     public JournalEntry? ReversalJournalEntry { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
+}
+
+public sealed class ForeignExchangeRate
+{
+    public long Id { get; set; }
+    public string CurrencyCode { get; set; } = string.Empty;
+    public DateTime RateDate { get; set; }
+    public ExchangeRatePurpose Purpose { get; set; }
+    public int Version { get; set; }
+    public decimal SarPerUnit { get; set; }
+    public string SourceReference { get; set; } = string.Empty;
+    public string EvidenceReference { get; set; } = string.Empty;
+    public ExchangeRateStatus Status { get; set; } = ExchangeRateStatus.Draft;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public DateTime? ApprovedAtUtc { get; set; }
+    public string? ApprovedBy { get; set; }
 }

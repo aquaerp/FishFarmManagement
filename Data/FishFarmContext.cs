@@ -84,6 +84,7 @@ namespace FishFarmManager.Data
         public DbSet<PostingMapping> PostingMappings { get; set; }
         public DbSet<OperationalPostingRecord> OperationalPostingRecords { get; set; }
         public DbSet<AccountingAdjustment> AccountingAdjustments { get; set; }
+        public DbSet<ForeignExchangeRate> ForeignExchangeRates { get; set; }
 
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
@@ -611,6 +612,20 @@ namespace FishFarmManager.Data
                     .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.ReversalJournalEntry).WithMany()
                     .HasForeignKey(e => e.ReversalJournalEntryId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ForeignExchangeRate>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CurrencyCode).IsRequired().HasMaxLength(3);
+                entity.Property(e => e.SarPerUnit).HasPrecision(18, 8);
+                entity.Property(e => e.SourceReference).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.EvidenceReference).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ApprovedBy).HasMaxLength(100);
+                entity.HasIndex(e => new { e.CurrencyCode, e.RateDate, e.Purpose, e.Version }).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_ForeignExchangeRate_Positive", "CAST(SarPerUnit AS NUMERIC) > 0"));
             });
         }
 
