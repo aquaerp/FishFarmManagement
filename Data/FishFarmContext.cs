@@ -537,16 +537,24 @@ namespace FishFarmManager.Data
                 entity.Property(e => e.Debit).HasPrecision(18, 2);
                 entity.Property(e => e.Credit).HasPrecision(18, 2);
                 entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.ForeignCurrencyCode).HasMaxLength(3);
+                entity.Property(e => e.ForeignAmount).HasPrecision(18, 8);
+                entity.Property(e => e.ExchangeRateSarPerUnit).HasPrecision(18, 8);
                 entity.HasOne(e => e.JournalEntry).WithMany(e => e.Lines)
                     .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.LedgerAccount).WithMany(e => e.JournalLines)
                     .HasForeignKey(e => e.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.CostCenter).WithMany(e => e.JournalLines)
                     .HasForeignKey(e => e.CostCenterId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ForeignExchangeRate).WithMany()
+                    .HasForeignKey(e => e.ForeignExchangeRateId).OnDelete(DeleteBehavior.Restrict);
                 entity.ToTable(table =>
                 {
                     table.HasCheckConstraint("CK_JournalEntryLine_NonNegative", "CAST(Debit AS NUMERIC) >= 0 AND CAST(Credit AS NUMERIC) >= 0");
                     table.HasCheckConstraint("CK_JournalEntryLine_OneSide", "(CAST(Debit AS NUMERIC) > 0 AND CAST(Credit AS NUMERIC) = 0) OR (CAST(Credit AS NUMERIC) > 0 AND CAST(Debit AS NUMERIC) = 0)");
+                    table.HasCheckConstraint("CK_JournalEntryLine_ForeignMeasurementComplete",
+                        "(ForeignCurrencyCode IS NULL AND ForeignAmount IS NULL AND ForeignExchangeRateId IS NULL AND ExchangeRateSarPerUnit IS NULL) OR " +
+                        "(ForeignCurrencyCode IS NOT NULL AND ForeignAmount IS NOT NULL AND ForeignExchangeRateId IS NOT NULL AND ExchangeRateSarPerUnit IS NOT NULL AND UPPER(ForeignCurrencyCode) <> 'SAR' AND CAST(ForeignAmount AS NUMERIC) > 0 AND CAST(ExchangeRateSarPerUnit AS NUMERIC) > 0)");
                 });
             });
 

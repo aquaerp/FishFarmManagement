@@ -161,6 +161,11 @@ public sealed class JournalEntryLine
     public int? CostCenterId { get; set; }
     public CostCenter? CostCenter { get; set; }
     public string? Description { get; set; }
+    public string? ForeignCurrencyCode { get; set; }
+    public decimal? ForeignAmount { get; set; }
+    public long? ForeignExchangeRateId { get; set; }
+    public ForeignExchangeRate? ForeignExchangeRate { get; set; }
+    public decimal? ExchangeRateSarPerUnit { get; set; }
 }
 
 public sealed class AccountingSequence

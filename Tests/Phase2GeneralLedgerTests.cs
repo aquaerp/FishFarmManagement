@@ -189,7 +189,7 @@ public sealed class Phase2GeneralLedgerTests
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('LedgerAccounts','FiscalPeriods','JournalEntries','JournalEntryLines','AccountingAuditEvents');";
         Assert.Equal(5L, Convert.ToInt64(command.ExecuteScalar()));
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'TRG_Journal%';";
-        Assert.Equal(7L, Convert.ToInt64(command.ExecuteScalar()));
+        Assert.Equal(9L, Convert.ToInt64(command.ExecuteScalar()));
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN ('TRG_JournalEntryLines_SarOnlyInsert','TRG_JournalEntryLines_SarOnlyUpdate','TRG_LedgerAccounts_CurrencyImmutableAfterUse');";
         Assert.Equal(3L, Convert.ToInt64(command.ExecuteScalar()));
     }
@@ -685,6 +685,115 @@ public sealed class Phase2GeneralLedgerTests
         service.Approve(rate.Id, "rate-reviewer", "Evidence verified");
 
         rate.SarPerUnit = 4.90m;
+
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public void GeneralLedger_PersistsApprovedForeignMeasurementAndReversesIt()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var rate = rateService.CreateDraft(new(
+            "USD", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 3.75m,
+            "SAMA rate publication", "evidence/USD-20260115.pdf"), "rate-maker", "Transaction rate");
+        rateService.Approve(rate.Id, "rate-reviewer", "Rate evidence verified");
+        var baseRequest = database.BalancedRequest(375m);
+        var request = baseRequest with
+        {
+            Lines = new[]
+            {
+                baseRequest.Lines[0] with
+                {
+                    ForeignCurrencyCode = "usd", ForeignAmount = 100m, ForeignExchangeRateId = rate.Id
+                },
+                baseRequest.Lines[1]
+            }
+        };
+        var ledger = new GeneralLedgerService(database.Context);
+
+        var draft = ledger.CreateDraft(request, "journal-maker", "Foreign sale recognition");
+        ledger.Approve(draft.Id, "journal-reviewer", "Translation checked");
+        ledger.Post(draft.Id, "journal-poster", "Foreign journal posted");
+        var replacement = rateService.CreateDraft(new(
+            "USD", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 3.76m,
+            "Corrected SAMA publication", "evidence/USD-20260115-v2.pdf"), "rate-corrector", "Correct rate");
+        rateService.Approve(replacement.Id, "rate-controller", "Correction verified");
+        var reversal = ledger.Reverse(draft.Id, new DateTime(2026, 1, 20), "journal-controller", "Cancel transaction");
+        var originalLine = database.Context.JournalEntryLines.AsNoTracking()
+            .Single(line => line.JournalEntryId == draft.Id && line.ForeignExchangeRateId != null);
+        var reversalLine = database.Context.JournalEntryLines.AsNoTracking()
+            .Single(line => line.JournalEntryId == reversal.Id && line.ForeignExchangeRateId != null);
+
+        Assert.Equal("USD", originalLine.ForeignCurrencyCode);
+        Assert.Equal(100m, originalLine.ForeignAmount);
+        Assert.Equal(3.75m, originalLine.ExchangeRateSarPerUnit);
+        Assert.Equal(375m, reversalLine.Credit);
+        Assert.Equal(originalLine.ForeignAmount, reversalLine.ForeignAmount);
+        Assert.Equal(originalLine.ForeignExchangeRateId, reversalLine.ForeignExchangeRateId);
+    }
+
+    [Fact]
+    public void GeneralLedger_RejectsIncompleteOrMismatchedForeignMeasurement()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var rate = rateService.CreateDraft(new(
+            "EUR", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 4m,
+            "SAMA rate publication", "evidence/EUR-20260115.pdf"), "rate-maker", "Transaction rate");
+        rateService.Approve(rate.Id, "rate-reviewer", "Rate evidence verified");
+        var ledger = new GeneralLedgerService(database.Context);
+        var baseRequest = database.BalancedRequest(400m);
+
+        Assert.Throws<InvalidOperationException>(() => ledger.CreateDraft(baseRequest with
+        {
+            Lines = new[]
+            {
+                baseRequest.Lines[0] with { ForeignCurrencyCode = "EUR", ForeignAmount = 100m },
+                baseRequest.Lines[1]
+            }
+        }, "journal-maker", "Missing rate"));
+        Assert.Throws<InvalidOperationException>(() => ledger.CreateDraft(baseRequest with
+        {
+            Lines = new[]
+            {
+                baseRequest.Lines[0] with
+                {
+                    Debit = 399.99m, ForeignCurrencyCode = "EUR", ForeignAmount = 100m,
+                    ForeignExchangeRateId = rate.Id
+                },
+                baseRequest.Lines[1] with { Credit = 399.99m }
+            }
+        }, "journal-maker", "Incorrect translation"));
+    }
+
+    [Fact]
+    public void GeneralLedger_ForeignMeasurementIsProtectedAtDatabaseLevel()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var rate = rateService.CreateDraft(new(
+            "GBP", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 5m,
+            "SAMA rate publication", "evidence/GBP-20260115.pdf"), "rate-maker", "Transaction rate");
+        rateService.Approve(rate.Id, "rate-reviewer", "Rate evidence verified");
+        var baseRequest = database.BalancedRequest(500m);
+        var request = baseRequest with
+        {
+            Lines = new[]
+            {
+                baseRequest.Lines[0] with
+                {
+                    ForeignCurrencyCode = "GBP", ForeignAmount = 100m, ForeignExchangeRateId = rate.Id
+                },
+                baseRequest.Lines[1]
+            }
+        };
+        var draft = new GeneralLedgerService(database.Context)
+            .CreateDraft(request, "journal-maker", "Protected foreign measurement");
+        var line = database.Context.JournalEntryLines.Single(item =>
+            item.JournalEntryId == draft.Id && item.ForeignExchangeRateId != null);
+
+        line.ForeignAmount = 99m;
 
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }

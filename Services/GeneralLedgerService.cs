@@ -11,7 +11,10 @@ public sealed record JournalLineRequest(
     decimal Debit,
     decimal Credit,
     int? CostCenterId = null,
-    string? Description = null);
+    string? Description = null,
+    string? ForeignCurrencyCode = null,
+    decimal? ForeignAmount = null,
+    long? ForeignExchangeRateId = null);
 
 public sealed record JournalDraftRequest(
     DateTime EntryDate,
@@ -71,6 +74,7 @@ public sealed class GeneralLedgerService
             .SingleOrDefault(item => item.Id == request.FiscalPeriodId)
             ?? throw new InvalidOperationException("The fiscal period does not exist.");
         EnsurePeriodIsOpen(period, request.EntryDate);
+        var foreignMeasurements = ValidateForeignMeasurements(request.EntryDate, request.Lines);
 
         var accountIds = request.Lines.Select(line => line.LedgerAccountId).Distinct().ToArray();
         var accounts = _context.LedgerAccounts
@@ -110,7 +114,11 @@ public sealed class GeneralLedgerService
                 Debit = line.Debit,
                 Credit = line.Credit,
                 CostCenterId = line.CostCenterId,
-                Description = NullIfWhiteSpace(line.Description)
+                Description = NullIfWhiteSpace(line.Description),
+                ForeignCurrencyCode = foreignMeasurements[index]?.CurrencyCode,
+                ForeignAmount = line.ForeignAmount,
+                ForeignExchangeRateId = line.ForeignExchangeRateId,
+                ExchangeRateSarPerUnit = foreignMeasurements[index]?.SarPerUnit
             }).ToList()
         };
         _context.JournalEntries.Add(entry);
@@ -132,6 +140,7 @@ public sealed class GeneralLedgerService
 
         var before = Snapshot(entry);
         ValidatePersistedLines(entry.Lines);
+        ValidatePersistedForeignMeasurements(entry);
         EnsureFunctionalCurrency(entry.Lines);
         EnsurePeriodIsOpen(entry.FiscalPeriod, entry.EntryDate);
         entry.Status = JournalEntryStatus.Approved;
@@ -151,6 +160,7 @@ public sealed class GeneralLedgerService
 
         var before = Snapshot(entry);
         ValidatePersistedLines(entry.Lines);
+        ValidatePersistedForeignMeasurements(entry);
         EnsureFunctionalCurrency(entry.Lines);
         EnsurePeriodIsOpen(entry.FiscalPeriod, entry.EntryDate);
         entry.Status = JournalEntryStatus.Posted;
@@ -183,7 +193,8 @@ public sealed class GeneralLedgerService
             "Reversal",
             original.EntryNumber,
             original.Lines.OrderBy(line => line.LineNumber)
-                .Select(line => new JournalLineRequest(line.LedgerAccountId, line.Credit, line.Debit, line.CostCenterId, line.Description))
+                .Select(line => new JournalLineRequest(line.LedgerAccountId, line.Credit, line.Debit, line.CostCenterId,
+                    line.Description, line.ForeignCurrencyCode, line.ForeignAmount, line.ForeignExchangeRateId))
                 .ToArray());
 
         // Create within this transaction without opening a nested transaction.
@@ -211,7 +222,11 @@ public sealed class GeneralLedgerService
                 Debit = line.Debit,
                 Credit = line.Credit,
                 CostCenterId = line.CostCenterId,
-                Description = line.Description
+                Description = line.Description,
+                ForeignCurrencyCode = line.ForeignCurrencyCode,
+                ForeignAmount = line.ForeignAmount,
+                ForeignExchangeRateId = line.ForeignExchangeRateId,
+                ExchangeRateSarPerUnit = original.Lines.OrderBy(item => item.LineNumber).ElementAt(index).ExchangeRateSarPerUnit
             }).ToList()
         };
         var before = Snapshot(original);
@@ -291,6 +306,60 @@ public sealed class GeneralLedgerService
         JournalBalanceValidator.Validate(lines.Select(line =>
             new JournalLineRequest(line.LedgerAccountId, line.Debit, line.Credit, line.CostCenterId, line.Description)));
 
+    private ForeignExchangeRate?[] ValidateForeignMeasurements(DateTime entryDate, IReadOnlyList<JournalLineRequest> lines)
+    {
+        var result = new ForeignExchangeRate?[lines.Count];
+        var rateIds = lines.Where(HasAnyForeignMeasurement)
+            .Select(line => line.ForeignExchangeRateId)
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+        var rates = _context.ForeignExchangeRates.AsNoTracking()
+            .Where(rate => rateIds.Contains(rate.Id)).ToDictionary(rate => rate.Id);
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var line = lines[index];
+            if (!HasAnyForeignMeasurement(line)) continue;
+            if (string.IsNullOrWhiteSpace(line.ForeignCurrencyCode)
+                || !line.ForeignAmount.HasValue || !line.ForeignExchangeRateId.HasValue)
+                throw new InvalidOperationException("Foreign currency code, amount, and approved exchange rate must be supplied together.");
+            var currency = line.ForeignCurrencyCode.Trim().ToUpperInvariant();
+            if (currency.Length != 3 || currency == FunctionalCurrencyCode || line.ForeignAmount <= 0m
+                || DecimalScale(line.ForeignAmount.Value) > 8)
+                throw new InvalidOperationException("The foreign currency measurement is invalid.");
+            if (!rates.TryGetValue(line.ForeignExchangeRateId.Value, out var rate)
+                || rate.Status != ExchangeRateStatus.Approved
+                || rate.Purpose != ExchangeRatePurpose.Transaction
+                || rate.RateDate.Date != entryDate.Date
+                || rate.CurrencyCode != currency)
+                throw new InvalidOperationException("The foreign exchange rate must be approved for the transaction currency and exact entry date.");
+            var expectedSar = decimal.Round(line.ForeignAmount.Value * rate.SarPerUnit, 2, MidpointRounding.AwayFromZero);
+            if (line.Debit + line.Credit != expectedSar)
+                throw new InvalidOperationException("The journal-line amount does not equal the foreign amount translated by the approved rate.");
+            result[index] = rate;
+        }
+        return result;
+    }
+
+    private void ValidatePersistedForeignMeasurements(JournalEntry entry)
+    {
+        var requests = entry.Lines.OrderBy(line => line.LineNumber).Select(line => new JournalLineRequest(
+            line.LedgerAccountId, line.Debit, line.Credit, line.CostCenterId, line.Description,
+            line.ForeignCurrencyCode, line.ForeignAmount, line.ForeignExchangeRateId)).ToArray();
+        var rates = ValidateForeignMeasurements(entry.EntryDate, requests);
+        for (var index = 0; index < requests.Length; index++)
+        {
+            if (rates[index]?.SarPerUnit != entry.Lines.OrderBy(line => line.LineNumber).ElementAt(index).ExchangeRateSarPerUnit)
+                throw new InvalidOperationException("The stored exchange-rate snapshot does not match the approved rate.");
+        }
+    }
+
+    private static bool HasAnyForeignMeasurement(JournalLineRequest line) =>
+        !string.IsNullOrWhiteSpace(line.ForeignCurrencyCode)
+        || line.ForeignAmount.HasValue
+        || line.ForeignExchangeRateId.HasValue;
+
+    private static int DecimalScale(decimal value) => (decimal.GetBits(value)[3] >> 16) & 0x7F;
+
     private void EnsureFunctionalCurrency(IEnumerable<JournalEntryLine> lines)
     {
         var accountIds = lines.Select(item => item.LedgerAccountId).Distinct().ToArray();
@@ -330,7 +399,11 @@ public sealed class GeneralLedgerService
         entry.ReversedBy,
         entry.ReversalOfJournalEntryId,
         Lines = entry.Lines.OrderBy(line => line.LineNumber)
-            .Select(line => new { line.LineNumber, line.LedgerAccountId, line.Debit, line.Credit, line.CostCenterId })
+            .Select(line => new
+            {
+                line.LineNumber, line.LedgerAccountId, line.Debit, line.Credit, line.CostCenterId,
+                line.ForeignCurrencyCode, line.ForeignAmount, line.ForeignExchangeRateId, line.ExchangeRateSarPerUnit
+            })
     });
 
     private static void RequireActorAndReason(string actor, string reason)
