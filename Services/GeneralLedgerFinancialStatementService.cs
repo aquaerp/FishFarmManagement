@@ -209,13 +209,20 @@ public sealed class GeneralLedgerFinancialStatementService
         return data;
     }
 
-    private async Task<LedgerMovement[]> LoadMovementsAsync(DateTime fromDate, DateTime toDate) =>
-        (await _context.JournalEntryLines.AsNoTracking()
+    private async Task<LedgerMovement[]> LoadMovementsAsync(DateTime fromDate, DateTime toDate)
+    {
+        var movements = (await _context.JournalEntryLines.AsNoTracking()
             .Where(line => line.JournalEntry.EntryDate >= fromDate && line.JournalEntry.EntryDate <= toDate
                 && (line.JournalEntry.Status == JournalEntryStatus.Posted || line.JournalEntry.Status == JournalEntryStatus.Reversed))
             .Select(line => new LedgerMovement(line.JournalEntryId, line.JournalEntry.EntryDate, line.JournalEntry.Source,
-                line.LedgerAccount.Type, line.LedgerAccount.FinancialStatementCategory, line.Debit, line.Credit))
+                line.LedgerAccount.Type, line.LedgerAccount.FinancialStatementCategory,
+                line.LedgerAccount.CurrencyCode, line.Debit, line.Credit))
             .ToListAsync()).ToArray();
+        if (movements.Any(item => !string.Equals(item.CurrencyCode,
+                GeneralLedgerService.FunctionalCurrencyCode, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Financial statements cannot combine currencies without approved exchange-rate accounting.");
+        return movements;
+    }
 
     private async Task<DateTime> GetFiscalWindowStartAsync(DateTime date) =>
         await _context.FiscalYears.AsNoTracking().Where(item => item.StartDate <= date && item.EndDate >= date)
@@ -262,6 +269,6 @@ public sealed class GeneralLedgerFinancialStatementService
     }
 
     private sealed record LedgerMovement(long EntryId, DateTime EntryDate, string Source, LedgerAccountType Type,
-        FinancialStatementCategory Category, decimal Debit, decimal Credit);
+        FinancialStatementCategory Category, string CurrencyCode, decimal Debit, decimal Credit);
     private sealed record AccountBalance(LedgerAccountType Type, FinancialStatementCategory Category, decimal NetDebit);
 }

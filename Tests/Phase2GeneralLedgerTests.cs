@@ -46,6 +46,62 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void GeneralLedger_RejectsForeignCurrencyAccountsUntilFxAccountingExists()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var foreignAccounts = database.SeedForeignCurrencyAccounts();
+        var request = database.BalancedRequest(25m) with
+        {
+            Lines = new[]
+            {
+                new JournalLineRequest(foreignAccounts.DebitId, 25m, 0m),
+                new JournalLineRequest(foreignAccounts.CreditId, 0m, 25m)
+            }
+        };
+
+        Assert.Throws<InvalidOperationException>(() =>
+            new GeneralLedgerService(database.Context).CreateDraft(request, "fx-user", "Unsupported USD journal"));
+    }
+
+    [Fact]
+    public void AccountCurrency_IsImmutableAtDatabaseLevelAfterJournalUse()
+    {
+        using var database = LedgerTestDatabase.Create();
+        new GeneralLedgerService(database.Context).CreateDraft(
+            database.BalancedRequest(10m), "creator", "Establish account usage");
+
+        database.ChangeUsedDebitAccountCurrency("USD");
+
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public async Task CrossYearReversal_UsesNextYearPeriodAndKeepsReportsSeparated()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var ledger = new GeneralLedgerService(database.Context);
+        var original = ledger.CreateDraft(database.BalancedRequest(90m), "creator", "2026 revenue");
+        ledger.Approve(original.Id, "approver", "2026 revenue checked");
+        ledger.Post(original.Id, "poster", "2026 revenue posted");
+        var nextPeriodId = database.AddNextYearJanuaryPeriod();
+
+        Assert.Throws<InvalidOperationException>(() => ledger.CreateDraft(
+            database.BalancedRequest(1m) with { EntryDate = new DateTime(2027, 1, 2) },
+            "creator", "Wrong period date"));
+
+        var reversal = ledger.Reverse(original.Id, new DateTime(2027, 1, 2), "controller", "Reverse in next year");
+        var reports = new FinancialService(database.Context);
+        var report2026 = await reports.GenerateIncomeStatementAsync(
+            new DateTime(2026, 1, 1), new DateTime(2026, 12, 31));
+        var report2027 = await reports.GenerateIncomeStatementAsync(
+            new DateTime(2027, 1, 1), new DateTime(2027, 1, 31));
+
+        Assert.Equal(nextPeriodId, reversal.FiscalPeriodId);
+        Assert.Equal(90m, report2026.OtherRevenue);
+        Assert.Equal(-90m, report2027.OtherRevenue);
+    }
+
+    [Fact]
     public void JournalLifecycle_RequiresIndependentApprovalAndPersistsAudit()
     {
         using var database = LedgerTestDatabase.Create();
@@ -133,7 +189,9 @@ public sealed class Phase2GeneralLedgerTests
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('LedgerAccounts','FiscalPeriods','JournalEntries','JournalEntryLines','AccountingAuditEvents');";
         Assert.Equal(5L, Convert.ToInt64(command.ExecuteScalar()));
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'TRG_Journal%';";
-        Assert.Equal(5L, Convert.ToInt64(command.ExecuteScalar()));
+        Assert.Equal(7L, Convert.ToInt64(command.ExecuteScalar()));
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN ('TRG_JournalEntryLines_SarOnlyInsert','TRG_JournalEntryLines_SarOnlyUpdate','TRG_LedgerAccounts_CurrencyImmutableAfterUse');";
+        Assert.Equal(3L, Convert.ToInt64(command.ExecuteScalar()));
     }
 
     [Fact]
@@ -628,6 +686,52 @@ public sealed class Phase2GeneralLedgerTests
         }
 
         public int AccountId(string code) => Context.LedgerAccounts.Single(item => item.Code == code).Id;
+
+        public (int DebitId, int CreditId) SeedForeignCurrencyAccounts()
+        {
+            var debit = new LedgerAccount
+            {
+                Code = $"USD-A-{Guid.NewGuid():N}",
+                NameAr = "حساب أصل بالدولار",
+                Type = LedgerAccountType.Asset,
+                NormalBalance = AccountNormalBalance.Debit,
+                CurrencyCode = "USD"
+            };
+            var credit = new LedgerAccount
+            {
+                Code = $"USD-E-{Guid.NewGuid():N}",
+                NameAr = "حساب حقوق ملكية بالدولار",
+                Type = LedgerAccountType.Equity,
+                NormalBalance = AccountNormalBalance.Credit,
+                CurrencyCode = "USD"
+            };
+            Context.AddRange(debit, credit);
+            Context.SaveChanges();
+            return (debit.Id, credit.Id);
+        }
+
+        public void ChangeUsedDebitAccountCurrency(string currency) =>
+            Context.LedgerAccounts.Single(item => item.Id == DebitAccountId).CurrencyCode = currency;
+
+        public int AddNextYearJanuaryPeriod()
+        {
+            var year = new FiscalYear
+            {
+                Name = "FY2027",
+                StartDate = new DateTime(2027, 1, 1),
+                EndDate = new DateTime(2027, 12, 31)
+            };
+            var period = new FiscalPeriod
+            {
+                FiscalYear = year,
+                Name = "2027-01",
+                StartDate = new DateTime(2027, 1, 1),
+                EndDate = new DateTime(2027, 1, 31)
+            };
+            Context.Add(period);
+            Context.SaveChanges();
+            return period.Id;
+        }
 
         public void PostRevenue(decimal amount)
         {

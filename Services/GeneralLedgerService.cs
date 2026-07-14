@@ -51,6 +51,7 @@ public static class JournalBalanceValidator
 
 public sealed class GeneralLedgerService
 {
+    public const string FunctionalCurrencyCode = "SAR";
     private const string JournalSequenceName = "JournalEntry";
     private readonly FishFarmContext _context;
 
@@ -72,11 +73,13 @@ public sealed class GeneralLedgerService
         EnsurePeriodIsOpen(period, request.EntryDate);
 
         var accountIds = request.Lines.Select(line => line.LedgerAccountId).Distinct().ToArray();
-        var validAccountIds = _context.LedgerAccounts
+        var accounts = _context.LedgerAccounts
             .Where(account => accountIds.Contains(account.Id) && account.IsActive && account.AllowsPosting)
-            .Select(account => account.Id).ToHashSet();
-        if (validAccountIds.Count != accountIds.Length)
+            .Select(account => new { account.Id, account.CurrencyCode }).ToArray();
+        if (accounts.Length != accountIds.Length)
             throw new InvalidOperationException("Every journal line must use an active posting account.");
+        if (accounts.Any(account => !string.Equals(account.CurrencyCode, FunctionalCurrencyCode, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Only {FunctionalCurrencyCode} accounts can be posted until foreign-currency accounting is implemented.");
 
         var costCenterIds = request.Lines.Where(line => line.CostCenterId.HasValue)
             .Select(line => line.CostCenterId!.Value).Distinct().ToArray();
@@ -129,6 +132,7 @@ public sealed class GeneralLedgerService
 
         var before = Snapshot(entry);
         ValidatePersistedLines(entry.Lines);
+        EnsureFunctionalCurrency(entry.Lines);
         EnsurePeriodIsOpen(entry.FiscalPeriod, entry.EntryDate);
         entry.Status = JournalEntryStatus.Approved;
         entry.ApprovedAtUtc = DateTime.UtcNow;
@@ -147,6 +151,7 @@ public sealed class GeneralLedgerService
 
         var before = Snapshot(entry);
         ValidatePersistedLines(entry.Lines);
+        EnsureFunctionalCurrency(entry.Lines);
         EnsurePeriodIsOpen(entry.FiscalPeriod, entry.EntryDate);
         entry.Status = JournalEntryStatus.Posted;
         entry.PostedAtUtc = DateTime.UtcNow;
@@ -163,6 +168,7 @@ public sealed class GeneralLedgerService
         var original = LoadEntry(entryId);
         if (original.Status != JournalEntryStatus.Posted)
             throw new InvalidOperationException("Only posted entries can be reversed.");
+        EnsureFunctionalCurrency(original.Lines);
         var reversalPeriod = _context.FiscalPeriods.Include(item => item.FiscalYear)
             .SingleOrDefault(item => item.StartDate <= reversalDate.Date && item.EndDate >= reversalDate.Date)
             ?? throw new InvalidOperationException("No fiscal period covers the reversal date.");
@@ -282,6 +288,16 @@ public sealed class GeneralLedgerService
     private static void ValidatePersistedLines(IEnumerable<JournalEntryLine> lines) =>
         JournalBalanceValidator.Validate(lines.Select(line =>
             new JournalLineRequest(line.LedgerAccountId, line.Debit, line.Credit, line.CostCenterId, line.Description)));
+
+    private void EnsureFunctionalCurrency(IEnumerable<JournalEntryLine> lines)
+    {
+        var accountIds = lines.Select(item => item.LedgerAccountId).Distinct().ToArray();
+        var currencies = _context.LedgerAccounts.AsNoTracking()
+            .Where(item => accountIds.Contains(item.Id)).Select(item => item.CurrencyCode).ToArray();
+        if (currencies.Length != accountIds.Length || currencies.Any(currency =>
+                !string.Equals(currency, FunctionalCurrencyCode, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Only {FunctionalCurrencyCode} accounts can be posted until foreign-currency accounting is implemented.");
+    }
 
     private void AddAudit(long entryId, string action, string actor, string reason, string? before, string? after) =>
         _context.AccountingAuditEvents.Add(new AccountingAuditEvent
