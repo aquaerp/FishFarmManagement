@@ -276,6 +276,7 @@ public sealed class ForeignMonetaryItem
     public DateTime CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public ICollection<ForeignCurrencySettlement> Settlements { get; set; } = new List<ForeignCurrencySettlement>();
+    public ICollection<ForeignCurrencyRevaluation> Revaluations { get; set; } = new List<ForeignCurrencyRevaluation>();
 }
 
 public sealed class ForeignCurrencySettlement
@@ -292,6 +293,23 @@ public sealed class ForeignCurrencySettlement
     public ForeignExchangeRate ForeignExchangeRate { get; set; } = null!;
     public long JournalEntryId { get; set; }
     public JournalEntry JournalEntry { get; set; } = null!;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+public sealed class ForeignCurrencyRevaluation
+{
+    public long Id { get; set; }
+    public long ForeignMonetaryItemId { get; set; }
+    public ForeignMonetaryItem ForeignMonetaryItem { get; set; } = null!;
+    public DateTime RevaluationDate { get; set; }
+    public decimal PreviousCarryingAmountSar { get; set; }
+    public decimal RevaluedCarryingAmountSar { get; set; }
+    public decimal UnrealizedGainLossSar { get; set; }
+    public long ForeignExchangeRateId { get; set; }
+    public ForeignExchangeRate ForeignExchangeRate { get; set; } = null!;
+    public long? JournalEntryId { get; set; }
+    public JournalEntry? JournalEntry { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
 }

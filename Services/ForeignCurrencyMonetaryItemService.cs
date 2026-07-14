@@ -27,6 +27,20 @@ public sealed record ForeignCurrencySettlementResult(
     ForeignCurrencySettlement Settlement,
     JournalEntry JournalEntry);
 
+public sealed record ForeignCurrencyRevaluationRequest(
+    long ForeignMonetaryItemId,
+    DateTime RevaluationDate,
+    int FiscalPeriodId,
+    long ClosingExchangeRateId,
+    int UnrealizedGainAccountId,
+    int UnrealizedLossAccountId,
+    string? Reference = null);
+
+public sealed record ForeignCurrencyRevaluationResult(
+    ForeignMonetaryItem Item,
+    ForeignCurrencyRevaluation Revaluation,
+    JournalEntry? JournalEntry);
+
 public sealed class ForeignCurrencyMonetaryItemService
 {
     private readonly FishFarmContext _context;
@@ -180,6 +194,93 @@ public sealed class ForeignCurrencyMonetaryItemService
         return new ForeignCurrencySettlementResult(item, settlement, journal);
     }
 
+    public ForeignCurrencyRevaluationResult Revalue(
+        ForeignCurrencyRevaluationRequest request,
+        string journalCreator,
+        string journalApprover,
+        string journalPoster,
+        string reason)
+    {
+        RequireActorAndReason(journalCreator, reason);
+        RequireActorAndReason(journalApprover, reason);
+        RequireActorAndReason(journalPoster, reason);
+        if (string.Equals(journalCreator.Trim(), journalApprover.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The revaluation journal creator cannot approve the same journal.");
+        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        var item = _context.ForeignMonetaryItems.SingleOrDefault(value => value.Id == request.ForeignMonetaryItemId)
+            ?? throw new InvalidOperationException("The foreign monetary item does not exist.");
+        if (item.Status != ForeignMonetaryItemStatus.Open || item.OutstandingForeignAmount <= 0m)
+            throw new InvalidOperationException("Only an open foreign monetary item can be revalued.");
+        if (request.RevaluationDate.Date < item.LastMeasurementDate.Date)
+            throw new InvalidOperationException("Revaluation cannot precede the item's last measurement date.");
+        if (_context.ForeignCurrencyRevaluations.Any(value => value.ForeignMonetaryItemId == item.Id
+            && value.RevaluationDate == request.RevaluationDate.Date))
+            throw new InvalidOperationException("The monetary item has already been revalued for this date.");
+        var rate = _context.ForeignExchangeRates.AsNoTracking().SingleOrDefault(value =>
+            value.Id == request.ClosingExchangeRateId
+            && value.Status == ExchangeRateStatus.Approved
+            && value.Purpose == ExchangeRatePurpose.Closing
+            && value.CurrencyCode == item.CurrencyCode
+            && value.RateDate == request.RevaluationDate.Date)
+            ?? throw new InvalidOperationException("An approved closing rate for the revaluation date and currency is required.");
+        ValidateDifferenceAccounts(request.UnrealizedGainAccountId, request.UnrealizedLossAccountId);
+
+        var previousCarrying = item.CarryingAmountSar;
+        var revaluedCarrying = decimal.Round(item.OutstandingForeignAmount * rate.SarPerUnit,
+            2, MidpointRounding.AwayFromZero);
+        var unrealizedGainLoss = item.Kind == ForeignMonetaryItemKind.Asset
+            ? revaluedCarrying - previousCarrying
+            : previousCarrying - revaluedCarrying;
+        JournalEntry? journal = null;
+        if (unrealizedGainLoss != 0m)
+        {
+            var lines = BuildRevaluationLines(item, request, previousCarrying, revaluedCarrying);
+            journal = _ledger.CreateDraft(new JournalDraftRequest(
+                    request.RevaluationDate,
+                    request.FiscalPeriodId,
+                    $"Foreign currency closing revaluation {item.Reference}",
+                    "ForeignCurrencyRevaluation",
+                    string.IsNullOrWhiteSpace(request.Reference) ? item.Reference : request.Reference.Trim(),
+                    lines),
+                journalCreator, reason);
+            _ledger.Approve(journal.Id, journalApprover, reason);
+            journal = _ledger.Post(journal.Id, journalPoster, reason);
+        }
+
+        var before = Snapshot(item);
+        item.CarryingAmountSar = revaluedCarrying;
+        item.LastMeasurementDate = request.RevaluationDate.Date;
+        var revaluation = new ForeignCurrencyRevaluation
+        {
+            ForeignMonetaryItemId = item.Id,
+            RevaluationDate = request.RevaluationDate.Date,
+            PreviousCarryingAmountSar = previousCarrying,
+            RevaluedCarryingAmountSar = revaluedCarrying,
+            UnrealizedGainLossSar = unrealizedGainLoss,
+            ForeignExchangeRateId = rate.Id,
+            JournalEntryId = journal?.Id,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedBy = journalCreator.Trim()
+        };
+        _context.ForeignCurrencyRevaluations.Add(revaluation);
+        _context.SaveChanges();
+        AddAudit(nameof(ForeignMonetaryItem), item.Id, "Revalue", journalPoster, reason, before, Snapshot(item));
+        AddAudit(nameof(ForeignCurrencyRevaluation), revaluation.Id, "Create", journalPoster, reason, null,
+            JsonSerializer.Serialize(new
+            {
+                revaluation.ForeignMonetaryItemId,
+                revaluation.RevaluationDate,
+                revaluation.PreviousCarryingAmountSar,
+                revaluation.RevaluedCarryingAmountSar,
+                revaluation.UnrealizedGainLossSar,
+                revaluation.ForeignExchangeRateId,
+                revaluation.JournalEntryId
+            }));
+        _context.SaveChanges();
+        transaction.Commit();
+        return new ForeignCurrencyRevaluationResult(item, revaluation, journal);
+    }
+
     private void ValidateSettlementAccounts(ForeignMonetaryItem item, ForeignCurrencySettlementRequest request)
     {
         var ids = new[] { request.CashAccountId, request.RealizedGainAccountId, request.RealizedLossAccountId }.Distinct().ToArray();
@@ -195,6 +296,21 @@ public sealed class ForeignCurrencyMonetaryItemService
             throw new InvalidOperationException("Settlement accounts must be active SAR cash, revenue-gain, and expense-loss posting accounts.");
         if (item.LedgerAccountId == request.CashAccountId)
             throw new InvalidOperationException("The settlement cash account cannot be the monetary item's ledger account.");
+    }
+
+    private void ValidateDifferenceAccounts(int gainAccountId, int lossAccountId)
+    {
+        if (gainAccountId == lossAccountId)
+            throw new InvalidOperationException("Unrealized gain and loss accounts must be distinct.");
+        var ids = new[] { gainAccountId, lossAccountId };
+        var accounts = _context.LedgerAccounts.AsNoTracking().Where(account => ids.Contains(account.Id))
+            .ToDictionary(account => account.Id);
+        if (accounts.Count != 2
+            || accounts[gainAccountId].Type != LedgerAccountType.Revenue
+            || accounts[lossAccountId].Type != LedgerAccountType.Expense
+            || accounts.Values.Any(account => !account.IsActive || !account.AllowsPosting
+                || account.CurrencyCode != GeneralLedgerService.FunctionalCurrencyCode))
+            throw new InvalidOperationException("Revaluation accounts must be active SAR revenue-gain and expense-loss posting accounts.");
     }
 
     private static IReadOnlyList<JournalLineRequest> BuildSettlementLines(
@@ -225,6 +341,40 @@ public sealed class ForeignCurrencyMonetaryItemService
             lines.Add(new JournalLineRequest(request.RealizedGainAccountId, 0m, realizedGainLoss, Description: "Realized foreign exchange gain"));
         else if (realizedGainLoss < 0m)
             lines.Add(new JournalLineRequest(request.RealizedLossAccountId, -realizedGainLoss, 0m, Description: "Realized foreign exchange loss"));
+        return lines;
+    }
+
+    private static IReadOnlyList<JournalLineRequest> BuildRevaluationLines(
+        ForeignMonetaryItem item,
+        ForeignCurrencyRevaluationRequest request,
+        decimal previousCarrying,
+        decimal revaluedCarrying)
+    {
+        var difference = Math.Abs(revaluedCarrying - previousCarrying);
+        var lines = new List<JournalLineRequest>();
+        if (item.Kind == ForeignMonetaryItemKind.Asset)
+        {
+            if (revaluedCarrying > previousCarrying)
+            {
+                lines.Add(new JournalLineRequest(item.LedgerAccountId, difference, 0m, Description: "Increase foreign monetary asset at closing rate"));
+                lines.Add(new JournalLineRequest(request.UnrealizedGainAccountId, 0m, difference, Description: "Unrealized foreign exchange gain"));
+            }
+            else
+            {
+                lines.Add(new JournalLineRequest(request.UnrealizedLossAccountId, difference, 0m, Description: "Unrealized foreign exchange loss"));
+                lines.Add(new JournalLineRequest(item.LedgerAccountId, 0m, difference, Description: "Decrease foreign monetary asset at closing rate"));
+            }
+        }
+        else if (revaluedCarrying > previousCarrying)
+        {
+            lines.Add(new JournalLineRequest(request.UnrealizedLossAccountId, difference, 0m, Description: "Unrealized foreign exchange loss"));
+            lines.Add(new JournalLineRequest(item.LedgerAccountId, 0m, difference, Description: "Increase foreign monetary liability at closing rate"));
+        }
+        else
+        {
+            lines.Add(new JournalLineRequest(item.LedgerAccountId, difference, 0m, Description: "Decrease foreign monetary liability at closing rate"));
+            lines.Add(new JournalLineRequest(request.UnrealizedGainAccountId, 0m, difference, Description: "Unrealized foreign exchange gain"));
+        }
         return lines;
     }
 

@@ -183,6 +183,9 @@ public sealed class GeneralLedgerService
         var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
         if (_context.ForeignMonetaryItems.Any(item => originalLineIds.Contains(item.RecognitionJournalEntryLineId)))
             throw new InvalidOperationException("A journal that originates a governed foreign monetary item cannot be reversed through the generic reversal workflow.");
+        if (_context.ForeignCurrencySettlements.Any(item => item.JournalEntryId == original.Id)
+            || _context.ForeignCurrencyRevaluations.Any(item => item.JournalEntryId == original.Id))
+            throw new InvalidOperationException("A governed foreign-currency settlement or revaluation cannot be reversed through the generic reversal workflow.");
         EnsureFunctionalCurrency(original.Lines);
         var reversalPeriod = _context.FiscalPeriods.Include(item => item.FiscalYear)
             .SingleOrDefault(item => item.StartDate <= reversalDate.Date && item.EndDate >= reversalDate.Date)
@@ -257,6 +260,10 @@ public sealed class GeneralLedgerService
         if (_context.JournalEntries.Any(entry => entry.FiscalPeriodId == periodId
             && (entry.Status == JournalEntryStatus.Draft || entry.Status == JournalEntryStatus.Approved)))
             throw new InvalidOperationException("A fiscal period with unposted entries cannot be closed.");
+        if (_context.ForeignMonetaryItems.Any(item => item.Status == ForeignMonetaryItemStatus.Open
+            && item.RecognitionJournalEntryLine.JournalEntry.EntryDate <= period.EndDate.Date
+            && item.LastMeasurementDate != period.EndDate.Date))
+            throw new InvalidOperationException("All open foreign monetary items must be revalued at the period-end date before closing.");
 
         var before = JsonSerializer.Serialize(new { period.Status, period.ClosedAtUtc, period.ClosedBy });
         period.Status = FiscalPeriodStatus.Closed;

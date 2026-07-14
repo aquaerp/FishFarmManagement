@@ -87,6 +87,7 @@ namespace FishFarmManager.Data
         public DbSet<ForeignExchangeRate> ForeignExchangeRates { get; set; }
         public DbSet<ForeignMonetaryItem> ForeignMonetaryItems { get; set; }
         public DbSet<ForeignCurrencySettlement> ForeignCurrencySettlements { get; set; }
+        public DbSet<ForeignCurrencyRevaluation> ForeignCurrencyRevaluations { get; set; }
 
         // VAT & Tax System
         public DbSet<TaxInvoice> TaxInvoices { get; set; }
@@ -665,6 +666,23 @@ namespace FishFarmManager.Data
                 entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
                 entity.HasIndex(e => e.JournalEntryId).IsUnique();
                 entity.HasOne(e => e.ForeignMonetaryItem).WithMany(e => e.Settlements)
+                    .HasForeignKey(e => e.ForeignMonetaryItemId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ForeignExchangeRate).WithMany()
+                    .HasForeignKey(e => e.ForeignExchangeRateId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.JournalEntry).WithMany()
+                    .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ForeignCurrencyRevaluation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.PreviousCarryingAmountSar).HasPrecision(18, 2);
+                entity.Property(e => e.RevaluedCarryingAmountSar).HasPrecision(18, 2);
+                entity.Property(e => e.UnrealizedGainLossSar).HasPrecision(18, 2);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => new { e.ForeignMonetaryItemId, e.RevaluationDate }).IsUnique();
+                entity.HasIndex(e => e.JournalEntryId).IsUnique();
+                entity.HasOne(e => e.ForeignMonetaryItem).WithMany(e => e.Revaluations)
                     .HasForeignKey(e => e.ForeignMonetaryItemId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.ForeignExchangeRate).WithMany()
                     .HasForeignKey(e => e.ForeignExchangeRateId).OnDelete(DeleteBehavior.Restrict);
