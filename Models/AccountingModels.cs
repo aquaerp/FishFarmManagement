@@ -55,6 +55,10 @@ public sealed class FiscalYear
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public bool IsClosed { get; set; }
+    public DateTime? ClosedAtUtc { get; set; }
+    public string? ClosedBy { get; set; }
+    public long? OpeningBalanceJournalEntryId { get; set; }
+    public long? ClosingJournalEntryId { get; set; }
     public ICollection<FiscalPeriod> Periods { get; set; } = new List<FiscalPeriod>();
 }
 

@@ -485,6 +485,9 @@ namespace FishFarmManager.Data
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
                 entity.HasIndex(e => e.Name).IsUnique();
+                entity.Property(e => e.ClosedBy).HasMaxLength(100);
+                entity.HasIndex(e => e.OpeningBalanceJournalEntryId).IsUnique();
+                entity.HasIndex(e => e.ClosingJournalEntryId).IsUnique();
             });
 
             modelBuilder.Entity<FiscalPeriod>(entity =>

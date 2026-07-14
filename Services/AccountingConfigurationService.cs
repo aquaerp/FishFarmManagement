@@ -18,9 +18,9 @@ public sealed class AccountingConfigurationService
         RequireActor(actorUsername);
         var existing = _context.AccountingConfigurations.Include(item => item.PostingMappings)
             .SingleOrDefault(item => item.Name == PilotConfigurationName && item.Version == PilotConfigurationVersion);
+        var accounts = EnsurePilotAccounts();
         if (existing != null) return existing;
 
-        var accounts = EnsurePilotAccounts();
         var configuration = new AccountingConfiguration
         {
             Name = PilotConfigurationName,
@@ -125,6 +125,7 @@ public sealed class AccountingConfigurationService
         Ensure("2200", "ضريبة القيمة المضافة المستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000");
         Ensure("3000", "حقوق الملكية", LedgerAccountType.Equity, AccountNormalBalance.Credit, false);
         Ensure("3100", "رأس المال", LedgerAccountType.Equity, AccountNormalBalance.Credit, true, "3000");
+        Ensure("3200", "الأرباح المبقاة", LedgerAccountType.Equity, AccountNormalBalance.Credit, true, "3000");
         Ensure("4000", "الإيرادات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, false);
         Ensure("4100", "إيرادات المبيعات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, true, "4000");
         Ensure("5000", "المصروفات", LedgerAccountType.Expense, AccountNormalBalance.Debit, false);

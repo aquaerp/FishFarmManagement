@@ -146,6 +146,7 @@ namespace FishFarmManager
             services.AddScoped<GeneralLedgerReportingService>();
             services.AddScoped<AccountingConfigurationService>();
             services.AddScoped<OperationalPostingService>();
+            services.AddScoped<FiscalYearClosingService>();
             services.AddHttpClient();
 
             // إضافة النماذج

@@ -298,11 +298,113 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Contains(lines, line => line.Code == "1520" && line.Credit == 125m);
     }
 
+    [Fact]
+    public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
+    {
+        using var database = LedgerTestDatabase.Create();
+        new AccountingConfigurationService(database.Context).CreatePilotDraft("configuration-owner");
+        var cashId = database.AccountId("1110");
+        var retainedEarningsId = database.AccountId("3200");
+        var service = new FiscalYearClosingService(database.Context);
+
+        var opening = service.CreateOpeningBalanceDraft(
+            database.FiscalYearId,
+            new[]
+            {
+                new OpeningBalanceRequest(cashId, 1_500m, 0m),
+                new OpeningBalanceRequest(retainedEarningsId, 0m, 1_500m)
+            },
+            "opening-accountant",
+            "Signed opening balance schedule");
+
+        Assert.Equal(JournalEntryStatus.Draft, opening.Status);
+        Assert.Equal("OpeningBalance", opening.Source);
+        Assert.Equal(opening.Id, database.Context.FiscalYears.Single().OpeningBalanceJournalEntryId);
+        Assert.Throws<InvalidOperationException>(() => service.CreateOpeningBalanceDraft(
+            database.FiscalYearId,
+            new[]
+            {
+                new OpeningBalanceRequest(cashId, 1m, 0m),
+                new OpeningBalanceRequest(retainedEarningsId, 0m, 1m)
+            },
+            "opening-accountant",
+            "Duplicate schedule"));
+    }
+
+    [Fact]
+    public void FiscalYearClose_RequiresPostedClosingJournalAndMakesYearImmutable()
+    {
+        using var database = LedgerTestDatabase.Create();
+        new AccountingConfigurationService(database.Context).CreatePilotDraft("configuration-owner");
+        database.PostRevenue(400m);
+        database.PrepareFinalPeriod();
+        var service = new FiscalYearClosingService(database.Context);
+
+        var closing = service.CreateYearEndClosingDraft(
+            database.FiscalYearId,
+            database.AccountId("3200"),
+            "closing-accountant",
+            "Year-end income statement review");
+        var lines = database.LinesWithAccountCodes(closing.Id);
+
+        Assert.Contains(lines, line => line.Code == "410100" && line.Debit == 400m);
+        Assert.Contains(lines, line => line.Code == "3200" && line.Credit == 400m);
+        Assert.Throws<InvalidOperationException>(() => service.CloseFiscalYear(
+            database.FiscalYearId, "controller", "Closing journal is still a draft"));
+
+        var ledger = new GeneralLedgerService(database.Context);
+        ledger.Approve(closing.Id, "independent-approver", "Closing journal independently checked");
+        ledger.Post(closing.Id, "posting-controller", "Closing journal posted");
+        service.CloseFiscalYear(database.FiscalYearId, "financial-controller", "All year-end checks completed");
+
+        var year = database.Context.FiscalYears.AsNoTracking().Include(item => item.Periods).Single();
+        Assert.True(year.IsClosed);
+        Assert.NotNull(year.ClosedAtUtc);
+        Assert.All(year.Periods, period => Assert.Equal(FiscalPeriodStatus.Closed, period.Status));
+
+        database.Context.ChangeTracker.Clear();
+        var stored = database.Context.FiscalYears.Single();
+        stored.Name = "Tampered year";
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public void ClosedFiscalYear_CreatesTwelvePeriodNextYearAndBalancedOpeningDraft()
+    {
+        using var database = LedgerTestDatabase.Create();
+        new AccountingConfigurationService(database.Context).CreatePilotDraft("configuration-owner");
+        database.PostRevenue(725m);
+        database.PrepareFinalPeriod();
+        var service = new FiscalYearClosingService(database.Context);
+        var closing = service.CreateYearEndClosingDraft(
+            database.FiscalYearId, database.AccountId("3200"), "closing-accountant", "Prepare year close");
+        var ledger = new GeneralLedgerService(database.Context);
+        ledger.Approve(closing.Id, "independent-approver", "Closing checked");
+        ledger.Post(closing.Id, "posting-controller", "Closing posted");
+        service.CloseFiscalYear(database.FiscalYearId, "financial-controller", "Year approved for close");
+
+        var result = service.CreateNextFiscalYearWithOpeningDraft(
+            database.FiscalYearId,
+            "FY2027",
+            new DateTime(2027, 1, 1),
+            new DateTime(2027, 12, 31),
+            "opening-accountant",
+            "Carry forward audited closing balances");
+        var openingLines = database.LinesWithAccountCodes(result.OpeningBalanceDraft.Id);
+
+        Assert.Equal(12, result.FiscalYear.Periods.Count);
+        Assert.Equal(JournalEntryStatus.Draft, result.OpeningBalanceDraft.Status);
+        Assert.Contains(openingLines, line => line.Code == "110100" && line.Debit == 725m);
+        Assert.Contains(openingLines, line => line.Code == "3200" && line.Credit == 725m);
+        Assert.Equal(openingLines.Sum(line => line.Debit), openingLines.Sum(line => line.Credit));
+    }
+
     private sealed class LedgerTestDatabase : IDisposable
     {
         private readonly string _databasePath;
         public FishFarmContext Context { get; }
         public int PeriodId { get; private set; }
+        public int FiscalYearId { get; private set; }
         private int DebitAccountId { get; set; }
         private int CreditAccountId { get; set; }
 
@@ -367,6 +469,7 @@ public sealed class Phase2GeneralLedgerTests
             };
             Context.AddRange(year, period, debit, credit);
             Context.SaveChanges();
+            FiscalYearId = year.Id;
             PeriodId = period.Id;
             DebitAccountId = debit.Id;
             CreditAccountId = credit.Id;
@@ -448,6 +551,40 @@ public sealed class Phase2GeneralLedgerTests
             var service = new AccountingConfigurationService(Context);
             var configuration = service.CreatePilotDraft("configuration-owner");
             service.Approve(configuration.Id, "independent-accountant", "Pilot map reviewed");
+        }
+
+        public int AccountId(string code) => Context.LedgerAccounts.Single(item => item.Code == code).Id;
+
+        public void PostRevenue(decimal amount)
+        {
+            var ledger = new GeneralLedgerService(Context);
+            var draft = ledger.CreateDraft(BalancedRequest(amount), "revenue-accountant", "Recognized annual revenue");
+            ledger.Approve(draft.Id, "revenue-approver", "Revenue evidence checked");
+            ledger.Post(draft.Id, "posting-controller", "Revenue posted");
+        }
+
+        public void PrepareFinalPeriod()
+        {
+            new GeneralLedgerService(Context).ClosePeriod(PeriodId, "period-controller", "January reconciled");
+            for (var month = 2; month <= 12; month++)
+            {
+                var start = new DateTime(2026, month, 1);
+                Context.FiscalPeriods.Add(new FiscalPeriod
+                {
+                    FiscalYearId = FiscalYearId,
+                    Name = $"2026-{month:D2}",
+                    StartDate = start,
+                    EndDate = start.AddMonths(1).AddDays(-1)
+                });
+            }
+            Context.SaveChanges();
+            var ledger = new GeneralLedgerService(Context);
+            foreach (var periodId in Context.FiscalPeriods
+                         .Where(item => item.FiscalYearId == FiscalYearId && item.EndDate < new DateTime(2026, 12, 1))
+                         .Select(item => item.Id).ToArray())
+            {
+                ledger.ClosePeriod(periodId, "period-controller", "Monthly reconciliation completed");
+            }
         }
 
         public (string Code, decimal Debit, decimal Credit)[] LinesWithAccountCodes(long entryId) =>
