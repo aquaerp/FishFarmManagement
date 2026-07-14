@@ -515,6 +515,7 @@ namespace FishFarmManager.Forms
                 payment!.ReferenceNumber = _referenceNumberTextBox.Text;
                 payment!.BankName = _bankNameTextBox.Text;
                 payment!.Notes = _notesTextBox.Text;
+                payment!.Status = "Completed";
 
                 // Update supplier balance (deduct payment)
                 var currentSupplier = _context.Suppliers.Find(supplierId);

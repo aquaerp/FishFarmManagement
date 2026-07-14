@@ -6,7 +6,15 @@ public enum FiscalPeriodStatus { Open, Closed }
 public enum JournalEntryStatus { Draft, Approved, Posted, Reversed }
 public enum CostCenterType { Farm, Pond, ProductionCycle, Department, Other }
 public enum AccountingConfigurationStatus { Draft, Approved, Retired }
-public enum PostingEventType { SalesCompleted, PurchaseReceived }
+public enum PostingEventType
+{
+    SalesCompleted,
+    PurchaseReceived,
+    CustomerPaymentReceived,
+    SupplierPaymentCompleted,
+    PayrollApproved,
+    DepreciationApproved
+}
 public enum PostingComponent
 {
     AccountsReceivable,
@@ -14,7 +22,13 @@ public enum PostingComponent
     OutputVat,
     InventoryOrExpense,
     InputVat,
-    AccountsPayable
+    AccountsPayable,
+    Cash,
+    PayrollExpense,
+    SalariesPayable,
+    PayrollWithholdingsPayable,
+    DepreciationExpense,
+    AccumulatedDepreciation
 }
 
 public sealed class LedgerAccount

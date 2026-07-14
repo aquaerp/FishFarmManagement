@@ -244,6 +244,60 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }
 
+    [Fact]
+    public void CustomerAndSupplierPayments_PostOppositeCashEntries()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var customerPaymentId = database.SeedCompletedCustomerPayment(80m);
+        var supplierPaymentId = database.SeedCompletedSupplierPayment(60m);
+        var posting = new OperationalPostingService(database.Context);
+
+        var receipt = posting.CreateCustomerPaymentDraft(
+            customerPaymentId, database.PeriodId, "cashier", "Customer receipt verified");
+        var payment = posting.CreateSupplierPaymentDraft(
+            supplierPaymentId, database.PeriodId, "cashier", "Supplier payment verified");
+
+        var receiptLines = database.LinesWithAccountCodes(receipt.Id);
+        var paymentLines = database.LinesWithAccountCodes(payment.Id);
+        Assert.Contains(receiptLines, line => line.Code == "1110" && line.Debit == 80m);
+        Assert.Contains(receiptLines, line => line.Code == "1120" && line.Credit == 80m);
+        Assert.Contains(paymentLines, line => line.Code == "2100" && line.Debit == 60m);
+        Assert.Contains(paymentLines, line => line.Code == "1110" && line.Credit == 60m);
+    }
+
+    [Fact]
+    public void PayrollPosting_ReconcilesGrossNetAndDeductions()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var salaryId = database.SeedApprovedSalary(1_000m, 850m, 150m);
+
+        var entry = new OperationalPostingService(database.Context).CreatePayrollAccrualDraft(
+            salaryId, database.PeriodId, "payroll-accountant", "Approved January payroll");
+        var lines = database.LinesWithAccountCodes(entry.Id);
+
+        Assert.Contains(lines, line => line.Code == "5200" && line.Debit == 1_000m);
+        Assert.Contains(lines, line => line.Code == "2110" && line.Credit == 850m);
+        Assert.Contains(lines, line => line.Code == "2120" && line.Credit == 150m);
+        Assert.Equal(lines.Sum(line => line.Debit), lines.Sum(line => line.Credit));
+    }
+
+    [Fact]
+    public void DepreciationPosting_DebitsExpenseAndCreditsAccumulatedDepreciation()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var depreciationId = database.SeedApprovedDepreciation(125m);
+
+        var entry = new OperationalPostingService(database.Context).CreateDepreciationDraft(
+            depreciationId, database.PeriodId, "asset-accountant", "Approved January depreciation");
+        var lines = database.LinesWithAccountCodes(entry.Id);
+
+        Assert.Contains(lines, line => line.Code == "5300" && line.Debit == 125m);
+        Assert.Contains(lines, line => line.Code == "1520" && line.Credit == 125m);
+    }
+
     private sealed class LedgerTestDatabase : IDisposable
     {
         private readonly string _databasePath;
@@ -387,6 +441,141 @@ public sealed class Phase2GeneralLedgerTests
             Context.Add(receiving);
             Context.SaveChanges();
             return receiving.Id;
+        }
+
+        public void ApprovePilotConfiguration()
+        {
+            var service = new AccountingConfigurationService(Context);
+            var configuration = service.CreatePilotDraft("configuration-owner");
+            service.Approve(configuration.Id, "independent-accountant", "Pilot map reviewed");
+        }
+
+        public (string Code, decimal Debit, decimal Credit)[] LinesWithAccountCodes(long entryId) =>
+            Context.JournalEntryLines.AsNoTracking()
+                .Where(line => line.JournalEntryId == entryId)
+                .Select(line => new { line.LedgerAccount.Code, line.Debit, line.Credit })
+                .AsEnumerable().Select(line => (line.Code, line.Debit, line.Credit)).ToArray();
+
+        public int SeedCompletedCustomerPayment(decimal amount)
+        {
+            var customer = new Customer
+            {
+                Name = "Payment Customer",
+                Type = CustomerType.Wholesale,
+                Status = CustomerStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            };
+            var payment = new CustomerPayment
+            {
+                Customer = customer,
+                PaymentNumber = $"CP-{Guid.NewGuid():N}",
+                PaymentDate = new DateTime(2026, 1, 21),
+                Amount = amount,
+                PaymentMethod = "BankTransfer",
+                Status = "Completed",
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(payment);
+            Context.SaveChanges();
+            return payment.Id;
+        }
+
+        public int SeedCompletedSupplierPayment(decimal amount)
+        {
+            var supplier = new Supplier
+            {
+                Name = "Payment Supplier",
+                Type = SupplierType.Feed,
+                Status = SupplierStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            };
+            var payment = new SupplierPayment
+            {
+                Supplier = supplier,
+                PaymentNumber = $"SP-{Guid.NewGuid():N}",
+                PaymentDate = new DateTime(2026, 1, 22),
+                Amount = amount,
+                PaymentMethod = "BankTransfer",
+                Status = "Completed",
+                PaidBy = "treasurer",
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(payment);
+            Context.SaveChanges();
+            return payment.Id;
+        }
+
+        public int SeedApprovedSalary(decimal gross, decimal net, decimal deductions)
+        {
+            var employee = new Employee
+            {
+                EmployeeNumber = $"EMP-{Guid.NewGuid():N}",
+                FullName = "Payroll Employee",
+                Name = "Payroll Employee",
+                NationalId = "1234567890",
+                BirthDate = new DateTime(1990, 1, 1),
+                HireDate = new DateTime(2020, 1, 1),
+                Position = EmployeePosition.Accountant,
+                Department = EmployeeDepartment.Accounting,
+                EmploymentType = EmploymentType.FullTime,
+                Status = EmployeeStatus.Active,
+                BasicSalary = gross,
+                CreatedAt = DateTime.UtcNow
+            };
+            var salary = new Salary
+            {
+                Employee = employee,
+                SalaryNumber = $"SAL-{Guid.NewGuid():N}",
+                Month = 1,
+                Year = 2026,
+                PayPeriodStart = new DateTime(2026, 1, 1),
+                PayPeriodEnd = new DateTime(2026, 1, 31),
+                BasicSalary = gross,
+                GrossSalary = gross,
+                TotalDeductions = deductions,
+                NetSalary = net,
+                Status = SalaryStatus.Approved,
+                ApprovedBy = "payroll-approver",
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(salary);
+            Context.SaveChanges();
+            return salary.Id;
+        }
+
+        public int SeedApprovedDepreciation(decimal amount)
+        {
+            var asset = new FixedAsset
+            {
+                AssetNumber = $"AST-{Guid.NewGuid():N}",
+                AssetName = "Test Pump",
+                Category = AssetCategory.Pumps,
+                PurchaseDate = new DateTime(2025, 1, 1),
+                PurchaseCost = 12_000m,
+                ResidualValue = 0m,
+                UsefulLifeYears = 8,
+                DepreciationMethod = DepreciationMethod.StraightLine,
+                Status = AssetStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            };
+            var depreciation = new AssetDepreciation
+            {
+                FixedAsset = asset,
+                Year = 2026,
+                Month = 1,
+                DepreciationDate = new DateTime(2026, 1, 31),
+                OpeningBookValue = 10_000m,
+                DepreciationAmount = amount,
+                AccumulatedDepreciation = 2_000m + amount,
+                ClosingBookValue = 10_000m - amount,
+                IsApproved = true,
+                ApprovedBy = "asset-approver",
+                ApprovedDate = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Add(depreciation);
+            Context.SaveChanges();
+            return depreciation.Id;
         }
 
         public void Dispose()
