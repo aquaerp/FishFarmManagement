@@ -1,7 +1,9 @@
 using FishFarmManager.Data;
+using FishFarmManager.Forms;
 using FishFarmManager.Models;
 using FishFarmManager.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 
 namespace FishFarmManager.Tests;
 
@@ -1060,6 +1062,82 @@ public sealed class Phase2GeneralLedgerTests
         Assert.Contains(lines, line => line.LedgerAccountId == accounts.GainId && line.Credit == 5m);
         result.Revaluation.UnrealizedGainLossSar = 4m;
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public void ForeignCurrencyBatchClose_IsAllOrNothingWhenAClosingRateIsMissing()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var rateService = new ForeignExchangeRateService(database.Context);
+        var usdTransaction = rateService.CreateDraft(new(
+            "USD", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 3.75m,
+            "SAMA USD transaction", "evidence/USD-batch-transaction.pdf"), "rate-maker", "USD transaction");
+        rateService.Approve(usdTransaction.Id, "rate-reviewer", "USD rate verified");
+        var eurTransaction = rateService.CreateDraft(new(
+            "EUR", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 4m,
+            "SAMA EUR transaction", "evidence/EUR-batch-transaction.pdf"), "rate-maker", "EUR transaction");
+        rateService.Approve(eurTransaction.Id, "rate-reviewer", "EUR rate verified");
+        var usdItem = database.RegisterPostedForeignAsset("USD", 100m, 375m, usdTransaction.Id, "AR-USD-BATCH");
+        var eurItem = database.RegisterPostedForeignAsset("EUR", 100m, 400m, eurTransaction.Id, "AR-EUR-BATCH");
+        var usdClosing = rateService.CreateDraft(new(
+            "USD", new DateTime(2026, 1, 31), ExchangeRatePurpose.Closing, 3.74m,
+            "SAMA USD closing", "evidence/USD-batch-closing.pdf"), "rate-maker", "USD closing");
+        rateService.Approve(usdClosing.Id, "rate-reviewer", "USD closing verified");
+        var accounts = database.SeedFxSettlementAccounts();
+        var service = new ForeignCurrencyMonetaryItemService(database.Context);
+
+        Assert.Throws<InvalidOperationException>(() => service.RevalueAllOpenItems(
+            database.PeriodId, accounts.GainId, accounts.LossId,
+            "SYSTEM:FX", "close-reviewer", "close-poster", "January batch close"));
+        Assert.Empty(database.Context.ForeignCurrencyRevaluations);
+        Assert.Equal(375m, database.Context.ForeignMonetaryItems.AsNoTracking().Single(value => value.Id == usdItem.Id).CarryingAmountSar);
+        Assert.Equal(400m, database.Context.ForeignMonetaryItems.AsNoTracking().Single(value => value.Id == eurItem.Id).CarryingAmountSar);
+
+        var eurClosing = rateService.CreateDraft(new(
+            "EUR", new DateTime(2026, 1, 31), ExchangeRatePurpose.Closing, 4.02m,
+            "SAMA EUR closing", "evidence/EUR-batch-closing.pdf"), "rate-maker", "EUR closing");
+        rateService.Approve(eurClosing.Id, "rate-reviewer", "EUR closing verified");
+        var results = service.RevalueAllOpenItems(
+            database.PeriodId, accounts.GainId, accounts.LossId,
+            "SYSTEM:FX", "close-reviewer", "close-poster", "January batch close");
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(374m, results.Single(value => value.Item.Id == usdItem.Id).Item.CarryingAmountSar);
+        Assert.Equal(402m, results.Single(value => value.Item.Id == eurItem.Id).Item.CarryingAmountSar);
+    }
+
+    [Fact]
+    public void AccountingManagementForm_ExposesGovernedAccountingWorkspacesForAccountant()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var userField = typeof(AuthenticationService).GetField("_currentUser", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var activityField = typeof(AuthenticationService).GetField("_lastActivityTime", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var previousUser = userField.GetValue(null);
+        var previousActivity = activityField.GetValue(null);
+        try
+        {
+            userField.SetValue(null, new User
+            {
+                Username = "accounting-ui-test", FullName = "Accounting UI Test",
+                Role = UserRole.Accountant, IsActive = true
+            });
+            activityField.SetValue(null, DateTime.Now);
+            using var form = new AccountingManagementForm(database.Context);
+            var tabs = form.Controls.OfType<TabControl>().Single();
+            var names = tabs.TabPages.Cast<TabPage>().Select(page => page.Text).ToArray();
+
+            Assert.Equal("إدارة المحاسبة", form.Text);
+            Assert.Contains("القيود", names);
+            Assert.Contains("الفترات المالية", names);
+            Assert.Contains("الإعداد المحاسبي", names);
+            Assert.Contains("أسعار الصرف", names);
+            Assert.Contains("البنود والعملات الأجنبية", names);
+        }
+        finally
+        {
+            userField.SetValue(null, previousUser);
+            activityField.SetValue(null, previousActivity);
+        }
     }
 
     private sealed class LedgerTestDatabase : IDisposable

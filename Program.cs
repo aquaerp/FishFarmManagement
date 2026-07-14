@@ -192,6 +192,7 @@ namespace FishFarmManager
             
             // Financial Forms
             services.AddTransient<FinancialDashboardForm>();
+            services.AddTransient<AccountingManagementForm>();
             services.AddTransient<PurchaseOrderForm>();
             services.AddTransient<PurchaseReceivingForm>();
             services.AddTransient<PurchaseReportsForm>();

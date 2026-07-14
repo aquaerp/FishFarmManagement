@@ -115,7 +115,9 @@ public sealed class ForeignCurrencyMonetaryItemService
         RequireActorAndReason(journalPoster, reason);
         if (string.Equals(journalCreator.Trim(), journalApprover.Trim(), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The settlement journal creator cannot approve the same journal.");
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         var item = _context.ForeignMonetaryItems.SingleOrDefault(value => value.Id == request.ForeignMonetaryItemId)
             ?? throw new InvalidOperationException("The foreign monetary item does not exist.");
         if (item.Status != ForeignMonetaryItemStatus.Open || item.OutstandingForeignAmount <= 0m)
@@ -190,7 +192,7 @@ public sealed class ForeignCurrencyMonetaryItemService
                 settlement.JournalEntryId
             }));
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return new ForeignCurrencySettlementResult(item, settlement, journal);
     }
 
@@ -206,7 +208,9 @@ public sealed class ForeignCurrencyMonetaryItemService
         RequireActorAndReason(journalPoster, reason);
         if (string.Equals(journalCreator.Trim(), journalApprover.Trim(), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The revaluation journal creator cannot approve the same journal.");
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         var item = _context.ForeignMonetaryItems.SingleOrDefault(value => value.Id == request.ForeignMonetaryItemId)
             ?? throw new InvalidOperationException("The foreign monetary item does not exist.");
         if (item.Status != ForeignMonetaryItemStatus.Open || item.OutstandingForeignAmount <= 0m)
@@ -277,8 +281,54 @@ public sealed class ForeignCurrencyMonetaryItemService
                 revaluation.JournalEntryId
             }));
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return new ForeignCurrencyRevaluationResult(item, revaluation, journal);
+    }
+
+    public IReadOnlyList<ForeignCurrencyRevaluationResult> RevalueAllOpenItems(
+        int fiscalPeriodId,
+        int unrealizedGainAccountId,
+        int unrealizedLossAccountId,
+        string journalCreator,
+        string journalApprover,
+        string journalPoster,
+        string reason)
+    {
+        RequireActorAndReason(journalCreator, reason);
+        var period = _context.FiscalPeriods.AsNoTracking().SingleOrDefault(value => value.Id == fiscalPeriodId)
+            ?? throw new InvalidOperationException("The fiscal period does not exist.");
+        if (period.Status != FiscalPeriodStatus.Open)
+            throw new InvalidOperationException("Foreign currency closing revaluation requires an open fiscal period.");
+        var closingDate = period.EndDate.Date;
+        var items = _context.ForeignMonetaryItems
+            .Where(item => item.Status == ForeignMonetaryItemStatus.Open
+                && item.RecognitionJournalEntryLine.JournalEntry.EntryDate <= closingDate
+                && item.LastMeasurementDate != closingDate)
+            .OrderBy(item => item.CurrencyCode).ThenBy(item => item.Reference).ToArray();
+        if (items.Length == 0) return Array.Empty<ForeignCurrencyRevaluationResult>();
+        var currencies = items.Select(item => item.CurrencyCode).Distinct().ToArray();
+        var rates = _context.ForeignExchangeRates.AsNoTracking().Where(rate =>
+                currencies.Contains(rate.CurrencyCode)
+                && rate.RateDate == closingDate
+                && rate.Purpose == ExchangeRatePurpose.Closing
+                && rate.Status == ExchangeRateStatus.Approved)
+            .ToDictionary(rate => rate.CurrencyCode);
+        var missing = currencies.Where(currency => !rates.ContainsKey(currency)).ToArray();
+        if (missing.Length != 0)
+            throw new InvalidOperationException($"Approved closing rates are missing for: {string.Join(", ", missing)}.");
+
+        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        var results = new List<ForeignCurrencyRevaluationResult>(items.Length);
+        foreach (var item in items)
+        {
+            results.Add(Revalue(new ForeignCurrencyRevaluationRequest(
+                    item.Id, closingDate, fiscalPeriodId, rates[item.CurrencyCode].Id,
+                    unrealizedGainAccountId, unrealizedLossAccountId,
+                    $"FX-CLOSE-{closingDate:yyyyMMdd}-{item.Reference}"),
+                journalCreator, journalApprover, journalPoster, reason));
+        }
+        transaction.Commit();
+        return results;
     }
 
     private void ValidateSettlementAccounts(ForeignMonetaryItem item, ForeignCurrencySettlementRequest request)

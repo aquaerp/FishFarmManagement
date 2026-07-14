@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using FishFarmManager.Data;
+using FishFarmManager.Models;
 using FishFarmManager.Services;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -215,6 +216,8 @@ namespace FishFarmManager.Forms
             
             // قائمة المحاسبة المالية
             var accountingMenu = new ToolStripMenuItem("المحاسبة المالية");
+            accountingMenu.DropDownItems.Add("إدارة المحاسبة", null, AccountingManagement_Click);
+            accountingMenu.DropDownItems.Add(new ToolStripSeparator());
             accountingMenu.DropDownItems.Add("لوحة التحكم المالية", null, FinancialDashboard_Click);
             accountingMenu.DropDownItems.Add("قائمة الدخل", null, IncomeStatement_Click);
             accountingMenu.DropDownItems.Add("الميزانية العمومية", null, BalanceSheet_Click);
@@ -1037,6 +1040,28 @@ namespace FishFarmManager.Forms
             {
                 LoggingService.LogError(ex, "خطأ في فتح لوحة التحكم المالية");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AccountingManagement_Click(object? sender, EventArgs e)
+        {
+            if (!AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager, UserRole.Accountant))
+            {
+                MessageBox.Show("هذه الشاشة متاحة للمدير والمحاسب فقط.", "صلاحيات غير كافية",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            try
+            {
+                LoggingService.LogUserActivity(AuthenticationService.CurrentUsername,
+                    "فتح إدارة المحاسبة", "تشغيل النواة المحاسبية والعملات الأجنبية");
+                ShowChildForm(_serviceProvider.GetRequiredService<AccountingManagementForm>());
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "خطأ في فتح إدارة المحاسبة");
+                MessageBox.Show($"تعذر فتح الشاشة: {ex.Message}", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
