@@ -4464,6 +4464,63 @@ namespace FishFarmManager.Migrations
                     b.ToTable("VATReturns");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaDocumentEnvelope", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("DocumentNumber").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<long>("InvoiceCounterValue").HasColumnType("INTEGER");
+                    b.Property<int>("Kind").HasColumnType("INTEGER");
+                    b.Property<string>("LocalPayloadSha256Base64").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("PreviousInvoiceHashBase64").IsRequired().HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<int>("Profile").HasColumnType("INTEGER");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<string>("SourceEntityId").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("SourceEntityType").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<int>("State").HasColumnType("INTEGER");
+                    b.Property<int>("SubmissionRoute").HasColumnType("INTEGER");
+                    b.Property<string>("UnsignedXml").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Uuid").IsRequired().HasMaxLength(36).HasColumnType("TEXT");
+                    b.Property<int>("ZatcaEgsUnitId").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("Uuid").IsUnique();
+                    b.HasIndex("SourceEntityType", "SourceEntityId").IsUnique();
+                    b.HasIndex("ZatcaEgsUnitId", "InvoiceCounterValue").IsUnique();
+                    b.ToTable("ZatcaDocumentEnvelopes", t =>
+                        t.HasCheckConstraint("CK_ZatcaDocumentEnvelope_ICV", "InvoiceCounterValue > 0"));
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaEgsUnit", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("DeviceId").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<bool>("HasOpenEnvelope").HasColumnType("INTEGER");
+                    b.Property<long>("LastReservedInvoiceCounterValue").HasColumnType("INTEGER");
+                    b.Property<string>("PreviousInvoiceHashBase64").IsRequired().HasMaxLength(500).HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("DeviceId").IsUnique();
+                    b.ToTable("ZatcaEgsUnits", t =>
+                        t.HasCheckConstraint("CK_ZatcaEgsUnit_Counter", "LastReservedInvoiceCounterValue >= 0"));
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaOutboxMessage", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("AttemptCount").HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("NextAttemptAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("Status").HasColumnType("INTEGER");
+                    b.Property<DateTime?>("UpdatedAtUtc").HasColumnType("TEXT");
+                    b.Property<long>("ZatcaDocumentEnvelopeId").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("ZatcaDocumentEnvelopeId").IsUnique();
+                    b.ToTable("ZatcaOutboxMessages", t =>
+                        t.HasCheckConstraint("CK_ZatcaOutbox_Attempts", "AttemptCount >= 0"));
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.WaterQualityRecord", b =>
                 {
                     b.Property<int>("Id")
@@ -4542,6 +4599,26 @@ namespace FishFarmManager.Migrations
                     b.HasIndex("RecordedByEmployeeId");
 
                     b.ToTable("WaterQualityRecords");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaDocumentEnvelope", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.ZatcaEgsUnit", "ZatcaEgsUnit")
+                        .WithMany("Envelopes")
+                        .HasForeignKey("ZatcaEgsUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                    b.Navigation("ZatcaEgsUnit");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaOutboxMessage", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.ZatcaDocumentEnvelope", "ZatcaDocumentEnvelope")
+                        .WithOne("OutboxMessage")
+                        .HasForeignKey("FishFarmManager.Models.ZatcaOutboxMessage", "ZatcaDocumentEnvelopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                    b.Navigation("ZatcaDocumentEnvelope");
                 });
 
             modelBuilder.Entity("FishFarmManager.Models.AssetDepreciation", b =>
@@ -5313,6 +5390,16 @@ namespace FishFarmManager.Migrations
             modelBuilder.Entity("FishFarmManager.Models.TraceabilityLot", b =>
                 {
                     b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaDocumentEnvelope", b =>
+                {
+                    b.Navigation("OutboxMessage");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaEgsUnit", b =>
+                {
+                    b.Navigation("Envelopes");
                 });
 #pragma warning restore 612, 618
         }

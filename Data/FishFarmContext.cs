@@ -100,6 +100,9 @@ namespace FishFarmManager.Data
         public DbSet<TaxInvoiceItem> TaxInvoiceItems { get; set; }
         public DbSet<VATReturn> VATReturns { get; set; }
         public DbSet<VATConfiguration> VATConfigurations { get; set; }
+        public DbSet<ZatcaEgsUnit> ZatcaEgsUnits { get; set; }
+        public DbSet<ZatcaDocumentEnvelope> ZatcaDocumentEnvelopes { get; set; }
+        public DbSet<ZatcaOutboxMessage> ZatcaOutboxMessages { get; set; }
 
         // Fixed Assets System
         public DbSet<FixedAsset> FixedAssets { get; set; }
@@ -121,6 +124,50 @@ namespace FishFarmManager.Data
             ConfigureAuthenticationSystem(modelBuilder);
             ConfigureSecurityAuditSystem(modelBuilder);
             ConfigureAccountingSystem(modelBuilder);
+            ConfigureZatcaSystem(modelBuilder);
+        }
+
+        private static void ConfigureZatcaSystem(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ZatcaEgsUnit>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.DeviceId).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.PreviousInvoiceHashBase64).IsRequired().HasMaxLength(500);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(value => value.DeviceId).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_ZatcaEgsUnit_Counter",
+                    "LastReservedInvoiceCounterValue >= 0"));
+            });
+            modelBuilder.Entity<ZatcaDocumentEnvelope>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.SourceEntityType).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.SourceEntityId).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.DocumentNumber).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Uuid).IsRequired().HasMaxLength(36);
+                entity.Property(value => value.PreviousInvoiceHashBase64).IsRequired().HasMaxLength(500);
+                entity.Property(value => value.UnsignedXml).IsRequired();
+                entity.Property(value => value.LocalPayloadSha256Base64).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Reason).IsRequired().HasMaxLength(500);
+                entity.HasIndex(value => value.Uuid).IsUnique();
+                entity.HasIndex(value => new { value.ZatcaEgsUnitId, value.InvoiceCounterValue }).IsUnique();
+                entity.HasIndex(value => new { value.SourceEntityType, value.SourceEntityId }).IsUnique();
+                entity.HasOne(value => value.ZatcaEgsUnit).WithMany(value => value.Envelopes)
+                    .HasForeignKey(value => value.ZatcaEgsUnitId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table => table.HasCheckConstraint("CK_ZatcaDocumentEnvelope_ICV",
+                    "InvoiceCounterValue > 0"));
+            });
+            modelBuilder.Entity<ZatcaOutboxMessage>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.HasIndex(value => value.ZatcaDocumentEnvelopeId).IsUnique();
+                entity.HasOne(value => value.ZatcaDocumentEnvelope).WithOne(value => value.OutboxMessage)
+                    .HasForeignKey<ZatcaOutboxMessage>(value => value.ZatcaDocumentEnvelopeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table => table.HasCheckConstraint("CK_ZatcaOutbox_Attempts", "AttemptCount >= 0"));
+            });
         }
 
         private void ConfigureProductionSystem(ModelBuilder modelBuilder)
