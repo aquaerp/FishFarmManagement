@@ -32,7 +32,9 @@ public sealed class InventoryTransactionService
     public StockMovement CreateDraft(InventoryMovementDraftRequest request, string actor, string reason)
     {
         RequireActorAndReason(actor, reason);
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         if (request.Quantity <= 0m || decimal.Round(request.Quantity, 3) != request.Quantity)
             throw new InvalidOperationException("Inventory quantity must be positive with no more than three decimal places.");
         if (string.IsNullOrWhiteSpace(request.Reference))
@@ -70,14 +72,16 @@ public sealed class InventoryTransactionService
         _context.SaveChanges();
         AddAudit(movement, "CreateDraft", actor, reason, new { request.MovementType, request.Quantity, request.ReceiptUnitCost });
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return movement;
     }
 
     public InventoryMovementApprovalResult Approve(long movementId, string approver, string reason)
     {
         RequireActorAndReason(approver, reason);
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         var movement = _context.StockMovements.Include(value => value.InventoryItem)
             .SingleOrDefault(value => value.Id == movementId)
             ?? throw new InvalidOperationException("The inventory movement does not exist.");
@@ -140,7 +144,7 @@ public sealed class InventoryTransactionService
         AddAudit(movement, "ApproveAndApply", approver, reason,
             new { QuantityBefore = before, QuantityAfter = after, item.UnitCost, MovementValue = movementValue, Method = CostingMethod });
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return new InventoryMovementApprovalResult(movement, before, after, item.UnitCost, movementValue);
     }
 

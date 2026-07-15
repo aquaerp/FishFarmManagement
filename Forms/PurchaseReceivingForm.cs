@@ -51,6 +51,7 @@ namespace FishFarmManager.Forms
             public decimal OrderedQuantity { get; set; }
             public decimal ReceivedQuantity { get; set; }
             public decimal RejectedQuantity { get; set; }
+            public decimal UnitPrice { get; set; }
             public string? BatchNumber { get; set; }
             public DateTime? ExpiryDate { get; set; }
             public bool QualityAccepted { get; set; } = true;
@@ -204,10 +205,11 @@ namespace FishFarmManager.Forms
 
             _autoAddToStockCheckBox = new CheckBox
             {
-                Text = "إضافة للمخزون تلقائياً",
+                Text = "يضاف للمخزون بعد اعتماد مستقل",
                 Location = new Point(x, 30),
                 Size = new Size(200, 25),
-                Checked = true
+                Checked = false,
+                Enabled = false
             };
             qualityPanel.Controls.Add(_autoAddToStockCheckBox);
 
@@ -353,7 +355,7 @@ namespace FishFarmManager.Forms
             try
             {
                 var items = await _context.PurchaseOrderItems
-                    .Where(i => i.PurchaseOrderId == orderId)
+                    .Where(i => i.PurchaseOrderId == orderId && i.RemainingQuantity > 0)
                     .Include(i => i.InventoryItem)
                     .Select(i => new ReceivingItemTemp
                     {
@@ -361,8 +363,11 @@ namespace FishFarmManager.Forms
                         InventoryItemId = i.InventoryItemId,
                         ItemName = i.ItemName,
                         OrderedQuantity = i.Quantity,
-                        ReceivedQuantity = i.Quantity - i.RemainingQuantity, // Already received
+                        ReceivedQuantity = i.RemainingQuantity,
                         RejectedQuantity = 0,
+                        UnitPrice = i.UnitPrice,
+                        BatchNumber = i.BatchNumber,
+                        ExpiryDate = i.ExpiryDate,
                         QualityAccepted = true
                     })
                     .ToListAsync();
@@ -424,7 +429,7 @@ namespace FishFarmManager.Forms
                 }
 
                 var confirmResult = MessageBox.Show(
-                    "هل أنت متأكد من حفظ استلام المشتريات؟\n\nسيتم تحديث المخزون تلقائياً.",
+                    "هل أنت متأكد من حفظ مسودة استلام المشتريات؟\n\nلن يتغير المخزون حتى يعتمدها مستخدم آخر.",
                     "تأكيد الحفظ",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question
@@ -439,6 +444,8 @@ namespace FishFarmManager.Forms
                     ReceivingNumber = _receivingNumberTextBox.Text,
                     PurchaseOrderId = (int)_purchaseOrderComboBox.SelectedValue,
                     ReceivingDate = _receivingDatePicker.Value,
+                    IsFullReceiving = true,
+                    IsPartialReceiving = false,
                     OverallQualityResult = (QualityTestResult)_qualityResultComboBox.SelectedValue,
                     QualityInspectionCompleted = true,
                     InspectedBy = AuthenticationService.CurrentUsername,
@@ -452,35 +459,23 @@ namespace FishFarmManager.Forms
                 // إضافة البنود
                 foreach (var item in _receivingItems)
                 {
-                    var acceptedQty = item.ReceivedQuantity - item.RejectedQuantity;
-                    
                     var receivingItem = new PurchaseReceivingItem
                     {
                         PurchaseOrderItemId = item.PurchaseOrderItemId,
+                        InventoryItemId = item.InventoryItemId,
                         ItemName = item.ItemName,
                         OrderedQuantity = item.OrderedQuantity,
                         ReceivedQuantity = item.ReceivedQuantity,
                         RejectedQuantity = item.RejectedQuantity,
+                        UnitPrice = item.UnitPrice,
+                        BatchNumber = item.BatchNumber,
+                        ExpiryDate = item.ExpiryDate,
+                        QualityAccepted = item.QualityAccepted,
+                        QualityResult = (QualityTestResult)_qualityResultComboBox.SelectedValue,
                         CreatedAt = DateTime.Now
                     };
 
                     receiving.Items.Add(receivingItem);
-
-                    // تحديث المخزون تلقائياً إذا كان الخيار مفعلاً
-                    if (_autoAddToStockCheckBox.Checked && acceptedQty > 0)
-                    {
-                        var stockMovement = new StockMovement
-                        {
-                            MovementType = StockMovementType.Purchase,
-                            MovementDate = _receivingDatePicker.Value,
-                            ReferenceNumber = _receivingNumberTextBox.Text,
-                            Notes = $"استلام من أمر الشراء - {item.ItemName}",
-                            CreatedBy = AuthenticationService.CurrentUsername,
-                            CreatedAt = DateTime.Now
-                        };
-
-                        _context.StockMovements.Add(stockMovement);
-                    }
                 }
 
                 _context.PurchaseReceivings.Add(receiving);
@@ -489,7 +484,7 @@ namespace FishFarmManager.Forms
                 LoggingService.LogInfo($"Purchase receiving saved: {receiving.ReceivingNumber} by {AuthenticationService.CurrentUsername}");
                 
                 MessageBox.Show(
-                    $"تم حفظ استلام المشتريات بنجاح\nرقم الاستلام: {receiving.ReceivingNumber}\nعدد البنود: {receiving.Items.Count}",
+                    $"تم حفظ مسودة الاستلام بنجاح\nرقم الاستلام: {receiving.ReceivingNumber}\nعدد البنود: {receiving.Items.Count}\nبانتظار اعتماد مستخدم مستقل لإضافة المخزون.",
                     "نجح",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
@@ -566,4 +561,3 @@ namespace FishFarmManager.Forms
         #endregion
     }
 }
-

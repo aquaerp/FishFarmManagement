@@ -18,6 +18,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private readonly DataGridView _adjustmentsGrid = CreateGrid();
     private readonly DataGridView _stockPostingGrid = CreateGrid();
     private readonly DataGridView _vatPostingGrid = CreateGrid();
+    private readonly DataGridView _purchaseReceivingGrid = CreateGrid();
     private readonly DataGridView _configurationGrid = CreateGrid();
     private readonly DataGridView _ratesGrid = CreateGrid();
     private readonly DataGridView _itemsGrid = CreateGrid();
@@ -194,25 +195,28 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private TabPage CreateOperationalPostingTab()
     {
         var page = new TabPage("الترحيل التشغيلي");
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 260
-        };
-        var stockGroup = new GroupBox { Text = "حركات المخزون المعتمدة", Dock = DockStyle.Fill };
-        stockGroup.Controls.Add(_stockPostingGrid);
-        stockGroup.Controls.Add(CommandBar(
+        var tabs = new TabControl { Dock = DockStyle.Fill };
+        var receipts = new TabPage("اعتماد استلام المشتريات");
+        receipts.Controls.Add(_purchaseReceivingGrid);
+        receipts.Controls.Add(CommandBar(ActionButton("اعتماد وإضافة جميع البنود للمخزون", (_, _) => Run(() =>
+            new PurchaseReceivingInventoryService(_context).ApproveAndAddToInventory(
+                (int)SelectedId(_purchaseReceivingGrid), Actor(), Reason())))));
+        var stock = new TabPage("ترحيل تكلفة المخزون");
+        stock.Controls.Add(_stockPostingGrid);
+        stock.Controls.Add(CommandBar(
             Labeled("الفترة المحاسبية", _operationalPeriod),
             ActionButton("ترحيل حركة المخزون", (_, _) => Run(() =>
                 new OperationalPostingService(_context).CreateInventoryMovementDraft(
                     (int)SelectedId(_stockPostingGrid), SelectedLookup(_operationalPeriod), Actor(), Reason())))));
-        var vatGroup = new GroupBox { Text = "إقرارات VAT المقدمة", Dock = DockStyle.Fill };
-        vatGroup.Controls.Add(_vatPostingGrid);
-        vatGroup.Controls.Add(CommandBar(ActionButton("ترحيل تسوية إقرار VAT", (_, _) => Run(() =>
+        var vat = new TabPage("تسوية إقرارات VAT");
+        vat.Controls.Add(_vatPostingGrid);
+        vat.Controls.Add(CommandBar(ActionButton("ترحيل تسوية إقرار VAT", (_, _) => Run(() =>
             new OperationalPostingService(_context).CreateVatReturnSettlementDraft(
                 (int)SelectedId(_vatPostingGrid), SelectedLookup(_operationalPeriod), Actor(), Reason())))));
-        split.Panel1.Controls.Add(stockGroup);
-        split.Panel2.Controls.Add(vatGroup);
-        page.Controls.Add(split);
+        tabs.TabPages.Add(receipts);
+        tabs.TabPages.Add(stock);
+        tabs.TabPages.Add(vat);
+        page.Controls.Add(tabs);
         return page;
     }
 
@@ -349,6 +353,17 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
 
     private void LoadOperationalPostings()
     {
+        _purchaseReceivingGrid.DataSource = _context.PurchaseReceivings.AsNoTracking()
+            .Where(value => value.ApprovedDate == null && value.ApprovedBy == null
+                && value.IsFullReceiving && value.QualityInspectionCompleted
+                && value.OverallQualityResult == QualityTestResult.Passed)
+            .OrderByDescending(value => value.ReceivingDate).Take(200)
+            .Select(value => new
+            {
+                value.Id, value.ReceivingNumber, value.ReceivingDate,
+                PurchaseOrder = value.PurchaseOrder.OrderNumber, Supplier = value.PurchaseOrder.Supplier.Name,
+                ItemCount = value.Items.Count, value.ReceivedBy, value.CreatedBy
+            }).ToList();
         _stockPostingGrid.DataSource = _context.StockMovements.AsNoTracking()
             .Where(value => value.IsApproved && !value.IsRejected && !value.IsCancelled)
             .OrderByDescending(value => value.MovementDate).Take(500)

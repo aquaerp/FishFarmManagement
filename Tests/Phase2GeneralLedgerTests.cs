@@ -466,6 +466,49 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void PurchaseReceivingApproval_UpdatesOrderInventoryAndMovementsAllOrNothing()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var receivingId = database.SeedPurchaseReceivingForInventory(secondUnitPrice: 0m);
+        var service = new PurchaseReceivingInventoryService(database.Context);
+
+        Assert.Throws<InvalidOperationException>(() => service.ApproveAndAddToInventory(
+            receivingId, "receiving-controller", "All received items checked"));
+        Assert.Empty(database.Context.StockMovements);
+        Assert.All(database.Context.InventoryItems.AsNoTracking()
+            .Where(value => value.Name.StartsWith("Atomic receiving")), value => Assert.Equal(0m, value.CurrentStock));
+        Assert.Null(database.Context.PurchaseReceivings.AsNoTracking()
+            .Single(value => value.Id == receivingId).ApprovedDate);
+
+        var invalidItem = database.Context.PurchaseReceivingItems
+            .Single(value => value.PurchaseReceivingId == receivingId && value.UnitPrice == 0m);
+        invalidItem.UnitPrice = 20m;
+        database.Context.SaveChanges();
+        var result = service.ApproveAndAddToInventory(
+            receivingId, "receiving-controller", "All received items checked");
+
+        Assert.Equal(2, result.InventoryMovements.Count);
+        Assert.Equal("receiving-controller", result.Receiving.ApprovedBy);
+        Assert.All(result.Receiving.Items, value =>
+        {
+            Assert.True(value.AddedToStock);
+            Assert.NotNull(value.StockMovementId);
+        });
+        var storedItems = database.Context.InventoryItems.AsNoTracking()
+            .Where(value => value.Name.StartsWith("Atomic receiving")).OrderBy(value => value.Name).ToArray();
+        Assert.Equal(5m, storedItems[0].CurrentStock);
+        Assert.Equal(10m, storedItems[0].UnitCost);
+        Assert.Equal(3m, storedItems[1].CurrentStock);
+        Assert.Equal(20m, storedItems[1].UnitCost);
+        var order = database.Context.PurchaseOrders.AsNoTracking().Single(value => value.Id == result.Receiving.PurchaseOrderId);
+        Assert.True(order.IsReceived);
+        Assert.Equal(PurchaseOrderStatus.Received, order.Status);
+        Assert.Throws<InvalidOperationException>(() => service.ApproveAndAddToInventory(
+            receivingId, "receiving-controller-2", "Duplicate receipt"));
+        Assert.Equal(2, database.Context.StockMovements.Count());
+    }
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1520,6 +1563,74 @@ public sealed class Phase2GeneralLedgerTests
             Context.Add(vatReturn);
             Context.SaveChanges();
             return vatReturn.Id;
+        }
+
+        public int SeedPurchaseReceivingForInventory(decimal secondUnitPrice)
+        {
+            var supplier = new Supplier
+            {
+                Name = "Atomic Receiving Supplier", Type = SupplierType.Feed,
+                Status = SupplierStatus.Active, CreatedAt = DateTime.UtcNow
+            };
+            var firstInventory = new InventoryItem
+            {
+                Name = "Atomic receiving A", Category = InventoryCategory.Feed, Unit = "kg",
+                CurrentStock = 0m, MinimumStock = 0m, MaximumStock = 1_000m,
+                UnitCost = 0m, Status = InventoryStatus.Active, IsActive = true, CreatedAt = DateTime.UtcNow
+            };
+            var secondInventory = new InventoryItem
+            {
+                Name = "Atomic receiving B", Category = InventoryCategory.Feed, Unit = "kg",
+                CurrentStock = 0m, MinimumStock = 0m, MaximumStock = 1_000m,
+                UnitCost = 0m, Status = InventoryStatus.Active, IsActive = true, CreatedAt = DateTime.UtcNow
+            };
+            var order = new PurchaseOrder
+            {
+                OrderNumber = $"PO-ATOMIC-{Guid.NewGuid():N}", OrderDate = new DateTime(2026, 1, 10),
+                ExpectedDeliveryDate = new DateTime(2026, 1, 20), Supplier = supplier,
+                Status = PurchaseOrderStatus.Approved, SubTotal = 110m, AmountAfterDiscount = 110m,
+                Total = 110m, CreatedAt = DateTime.UtcNow
+            };
+            var firstOrderItem = new PurchaseOrderItem
+            {
+                PurchaseOrder = order, InventoryItem = firstInventory, ItemName = firstInventory.Name,
+                Quantity = 5m, RemainingQuantity = 5m, UnitPrice = 10m, TotalPrice = 50m,
+                CreatedAt = DateTime.UtcNow
+            };
+            var secondOrderItem = new PurchaseOrderItem
+            {
+                PurchaseOrder = order, InventoryItem = secondInventory, ItemName = secondInventory.Name,
+                Quantity = 3m, RemainingQuantity = 3m, UnitPrice = 20m, TotalPrice = 60m,
+                CreatedAt = DateTime.UtcNow
+            };
+            var receiving = new PurchaseReceiving
+            {
+                ReceivingNumber = $"GRN-ATOMIC-{Guid.NewGuid():N}", PurchaseOrder = order,
+                ReceivingDate = new DateTime(2026, 1, 20), IsFullReceiving = true,
+                QualityInspectionCompleted = true, OverallQualityResult = QualityTestResult.Passed,
+                InspectedBy = "quality-controller", InspectionDate = DateTime.UtcNow,
+                ReceivedBy = "receiving-maker", CreatedBy = "receiving-maker", CreatedAt = DateTime.UtcNow,
+                Items = new List<PurchaseReceivingItem>
+                {
+                    new()
+                    {
+                        PurchaseOrderItem = firstOrderItem, InventoryItem = firstInventory,
+                        ItemName = firstInventory.Name, OrderedQuantity = 5m, ReceivedQuantity = 5m,
+                        UnitPrice = 10m, QualityAccepted = true, QualityResult = QualityTestResult.Passed,
+                        BatchNumber = "BATCH-A", CreatedAt = DateTime.UtcNow
+                    },
+                    new()
+                    {
+                        PurchaseOrderItem = secondOrderItem, InventoryItem = secondInventory,
+                        ItemName = secondInventory.Name, OrderedQuantity = 3m, ReceivedQuantity = 3m,
+                        UnitPrice = secondUnitPrice, QualityAccepted = true, QualityResult = QualityTestResult.Passed,
+                        BatchNumber = "BATCH-B", CreatedAt = DateTime.UtcNow
+                    }
+                }
+            };
+            Context.Add(receiving);
+            Context.SaveChanges();
+            return receiving.Id;
         }
 
         public int AccountId(string code) => Context.LedgerAccounts.Single(item => item.Code == code).Id;
