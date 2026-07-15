@@ -14,7 +14,7 @@ namespace FishFarmManager.Forms
     /// <summary>
     /// نموذج الفواتير الضريبية
     /// Tax Invoice Form
-    /// ZATCA Compliant
+    /// Tax invoice entry. Phase-2 ZATCA compliance remains controlled by gate G4.
     /// </summary>
     public partial class TaxInvoiceForm : Form
     {
@@ -763,4 +763,3 @@ namespace FishFarmManager.Forms
         }
     }
 }
-

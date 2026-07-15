@@ -20,7 +20,7 @@
 | ACC-004 | سياسة وتنفيذ IAS 41 | Must | المحاسب | G2 | DN |
 | INV-001 | الاستلام والحركة والقيد في معاملة واحدة | Must | Backend | G3 | DN |
 | INV-002 | تسوية المخزون مع الأستاذ 100% | Must | المحاسب/QA | G3 | DN |
-| ZAT-001 | UBL XML صحيح لكل نوع مستخدم | Must | مختص ZATCA | G4 | NS |
+| ZAT-001 | UBL XML صحيح لكل نوع مستخدم | Must | مختص ZATCA | G4 | IP |
 | ZAT-002 | hash/counter/UUID/QR والتوقيع | Must | مختص ZATCA | G4 | NS |
 | ZAT-003 | Clearance/Reporting وOutbox | Must | Backend | G4 | NS |
 | PDP-001 | جرد البيانات والاحتفاظ وحقوق الأفراد | Must | الخصوصية | G6 | NS |

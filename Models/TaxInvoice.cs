@@ -2,13 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Globalization;
+using System.Text;
 
 namespace FishFarmManager.Models
 {
     /// <summary>
     /// نموذج الفاتورة الضريبية
     /// Tax Invoice Model
-    /// ZATCA Compliant
+    /// Legacy tax invoice record. ZATCA integration is governed by the G4 workflow.
     /// </summary>
     public class TaxInvoice
     {
@@ -156,9 +158,23 @@ namespace FishFarmManager.Models
 
         public string GenerateQRCodeContent()
         {
-            // Format: TLV (Tag-Length-Value) as per ZATCA specs
-            var content = $"{SellerName}|{SellerVATNumber}|{IssueDate:yyyy-MM-dd HH:mm:ss}|{TotalWithVAT}|{VATAmount}";
-            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content));
+            using var payload = new MemoryStream();
+            WriteTlv(payload, 1, SellerName);
+            WriteTlv(payload, 2, SellerVATNumber);
+            WriteTlv(payload, 3, IssueDate.ToString("yyyy-MM-dd'T'HH:mm:ssK", CultureInfo.InvariantCulture));
+            WriteTlv(payload, 4, TotalWithVAT.ToString("0.00", CultureInfo.InvariantCulture));
+            WriteTlv(payload, 5, VATAmount.ToString("0.00", CultureInfo.InvariantCulture));
+            return Convert.ToBase64String(payload.ToArray());
+        }
+
+        private static void WriteTlv(Stream destination, byte tag, string? value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
+            if (bytes.Length > byte.MaxValue)
+                throw new InvalidOperationException($"QR TLV value for tag {tag} exceeds 255 UTF-8 bytes.");
+            destination.WriteByte(tag);
+            destination.WriteByte((byte)bytes.Length);
+            destination.Write(bytes, 0, bytes.Length);
         }
     }
 

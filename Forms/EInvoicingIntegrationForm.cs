@@ -3,15 +3,10 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml;
-using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using FishFarmManager.Data;
 using FishFarmManager.Models;
 using FishFarmManager.Services;
@@ -505,27 +500,29 @@ namespace FishFarmManager.Forms
             
             _submitSelectedButton = new Button
             {
-                Text = "إرسال المحدد",
+                Text = "غير مفعل — G4",
                 Location = new Point(tab.Width - 420, 12),
                 Width = 110,
                 Height = 35,
                 BackColor = Color.FromArgb(76, 175, 80),
                 ForeColor = Color.White,
                 Font = new Font("Cairo", 10F, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
             };
             _submitSelectedButton.Click += async (s, e) => await SubmitSelectedInvoicesAsync();
             
             _submitAllButton = new Button
             {
-                Text = "إرسال الكل",
+                Text = "غير مفعل — G4",
                 Location = new Point(tab.Width - 540, 12),
                 Width = 110,
                 Height = 35,
                 BackColor = Color.FromArgb(46, 92, 138),
                 ForeColor = Color.White,
                 Font = new Font("Cairo", 10F, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
             };
             _submitAllButton.Click += async (s, e) => await SubmitAllInvoicesAsync();
             
@@ -643,157 +640,12 @@ namespace FishFarmManager.Forms
 
         private async Task SubmitInvoicesAsync(List<int> invoiceIds)
         {
-            try
-            {
-                _submitSelectedButton.Enabled = false;
-                _submitAllButton.Enabled = false;
-                Cursor.Current = Cursors.WaitCursor;
-                
-                AddLog($"🔄 جاري إرسال {invoiceIds.Count} فاتورة...");
-                
-                int successCount = 0;
-                int failCount = 0;
-                
-                foreach (var id in invoiceIds)
-                {
-                    var invoice = await _context.TaxInvoices
-                        .Include(i => i.Customer)
-                        .Include(i => i.Items)
-                        .FirstOrDefaultAsync(i => i.Id == id);
-                    
-                    if (invoice == null) continue;
-                    
-                    try
-                    {
-                        // Generate UUID if not exists
-                        if (string.IsNullOrEmpty(invoice.UUID))
-                        {
-                            invoice.UUID = Guid.NewGuid().ToString();
-                        }
-                        
-                        // Generate Invoice Hash
-                        var invoiceData = GenerateInvoiceXml(invoice);
-                        invoice.InvoiceHash = ComputeHash(invoiceData);
-                        
-                        // Sign invoice
-                        if (_certificate != null)
-                        {
-                            // Digital signature would go here
-                            AddLog($"🔐 تم توقيع الفاتورة {invoice.InvoiceNumber}");
-                        }
-                        
-                        // Submit to ZATCA (Simulated)
-                        var success = await SubmitToZATCAAsync(invoice, invoiceData);
-                        
-                        if (success)
-                        {
-                            invoice.IsSubmittedToZATCA = true;
-                            invoice.SubmittedToZATCADate = DateTime.Now;
-                            invoice.ZATCAResponseCode = "SUCCESS";
-                            invoice.ZATCAResponseMessage = "Invoice accepted by ZATCA";
-                            successCount++;
-                            AddLog($"✅ تم إرسال الفاتورة {invoice.InvoiceNumber} بنجاح");
-                        }
-                        else
-                        {
-                            failCount++;
-                            AddLog($"❌ فشل إرسال الفاتورة {invoice.InvoiceNumber}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        failCount++;
-                        AddLog($"❌ خطأ في الفاتورة {invoice.InvoiceNumber}: {ex.Message}");
-                    }
-                }
-                
-                await _context.SaveChangesAsync();
-                
-                AddLog($"✅ تم الإرسال: {successCount} نجح، {failCount} فشل");
-                MessageBox.Show($"تم الإرسال:\n✅ ناجح: {successCount}\n❌ فاشل: {failCount}", 
-                    "نتيجة الإرسال", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                
-                await LoadPendingInvoicesAsync();
-                
-                LoggingService.LogInfo($"Submitted {successCount} invoices to ZATCA");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"❌ خطأ عام: {ex.Message}");
-                MessageBox.Show($"حدث خطأ:\n{ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                LoggingService.LogError($"Failed to submit invoices: {ex.Message}");
-            }
-            finally
-            {
-                _submitSelectedButton.Enabled = true;
-                _submitAllButton.Enabled = true;
-                Cursor.Current = Cursors.Default;
-            }
-        }
-
-        private string GenerateInvoiceXml(TaxInvoice invoice)
-        {
-            var xml = new XDocument(
-                new XElement("Invoice",
-                    new XElement("UUID", invoice.UUID),
-                    new XElement("InvoiceNumber", invoice.InvoiceNumber),
-                    new XElement("IssueDate", invoice.IssueDate.ToString("yyyy-MM-dd")),
-                    new XElement("InvoiceType", invoice.InvoiceType.ToString()),
-                    new XElement("Seller",
-                        new XElement("VATNumber", invoice.SellerVATNumber),
-                        new XElement("Name", invoice.SellerName),
-                        new XElement("Address", invoice.SellerAddress)
-                    ),
-                    new XElement("Buyer",
-                        new XElement("VATNumber", invoice.BuyerVATNumber),
-                        new XElement("Name", invoice.BuyerName),
-                        new XElement("Address", invoice.BuyerAddress)
-                    ),
-                    new XElement("Totals",
-                        new XElement("SubTotal", invoice.SubTotal),
-                        new XElement("VATAmount", invoice.VATAmount),
-                        new XElement("TotalWithVAT", invoice.TotalWithVAT)
-                    ),
-                    new XElement("Items",
-                        invoice.Items.Select(item =>
-                            new XElement("Item",
-                                new XElement("Name", item.ItemName),
-                                new XElement("Quantity", item.Quantity),
-                                new XElement("UnitPrice", item.UnitPrice),
-                                new XElement("VATAmount", item.VATAmount),
-                                new XElement("Total", item.TotalAmount)
-                            )
-                        )
-                    )
-                )
-            );
-            
-            return xml.ToString();
-        }
-
-        private string ComputeHash(string data)
-        {
-            using var sha256 = SHA256.Create();
-            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(data));
-            return Convert.ToBase64String(hashBytes);
-        }
-
-        private async Task<bool> SubmitToZATCAAsync(TaxInvoice invoice, string xmlData)
-        {
-            try
-            {
-                // This is a simulated submission
-                // In production, you would make actual HTTP request to ZATCA API
-                
-                await Task.Delay(500); // Simulate network delay
-                
-                // Simulate success/failure (90% success rate)
-                return new Random().Next(100) < 90;
-            }
-            catch
-            {
-                return false;
-            }
+            await Task.CompletedTask;
+            const string message = "تم تعطيل الإرسال القديم لأنه كان محاكاة ولا ينفذ UBL أو CSID أو واجهات Clearance/Reporting. " +
+                                   "لن تتغير حالة أي فاتورة إلى مقدمة أو مقبولة حتى اكتمال مسار G4 والتحقق الرسمي.";
+            AddLog($"⛔ {message}");
+            LoggingService.LogWarning($"Blocked legacy simulated ZATCA submission for {invoiceIds.Count} invoice(s).");
+            MessageBox.Show(message, "G4 — الإرسال غير مفعّل", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         #endregion
@@ -832,14 +684,15 @@ namespace FishFarmManager.Forms
             
             _checkStatusButton = new Button
             {
-                Text = "التحقق من الحالة",
+                Text = "غير مفعل — G4",
                 Location = new Point(tab.Width - 430, 12),
                 Width = 120,
                 Height = 35,
                 BackColor = Color.FromArgb(76, 175, 80),
                 ForeColor = Color.White,
                 Font = new Font("Cairo", 10F, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
             };
             _checkStatusButton.Click += async (s, e) => await CheckInvoiceStatusAsync();
             
@@ -904,27 +757,11 @@ namespace FishFarmManager.Forms
 
         private async Task CheckInvoiceStatusAsync()
         {
-            try
-            {
-                if (_submittedInvoicesGrid.SelectedRows.Count == 0)
-                {
-                    MessageBox.Show("الرجاء تحديد فاتورة", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                
-                AddLog("🔄 جاري التحقق من الحالة...");
-                
-                // Simulated status check
-                await Task.Delay(1000);
-                
-                AddLog("✅ الحالة: معتمدة ومقبولة من ZATCA");
-                MessageBox.Show("الحالة: معتمدة ومقبولة من ZATCA", "حالة الفاتورة", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                AddLog($"❌ خطأ: {ex.Message}");
-                LoggingService.LogError($"Failed to check status: {ex.Message}");
-            }
+            await Task.CompletedTask;
+            const string message = "التحقق القديم كان محاكاة، ولذلك عُطّل حتى اكتمال عميل ZATCA الحقيقي وحفظ الاستجابة الموقعة.";
+            AddLog($"⛔ {message}");
+            LoggingService.LogWarning("Blocked legacy simulated ZATCA status check.");
+            MessageBox.Show(message, "G4 — التحقق غير مفعّل", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         #endregion
