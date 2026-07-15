@@ -16,6 +16,8 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private readonly DataGridView _periodsGrid = CreateGrid();
     private readonly DataGridView _yearsGrid = CreateGrid();
     private readonly DataGridView _adjustmentsGrid = CreateGrid();
+    private readonly DataGridView _stockPostingGrid = CreateGrid();
+    private readonly DataGridView _vatPostingGrid = CreateGrid();
     private readonly DataGridView _configurationGrid = CreateGrid();
     private readonly DataGridView _ratesGrid = CreateGrid();
     private readonly DataGridView _itemsGrid = CreateGrid();
@@ -32,6 +34,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private readonly CheckBox _scheduleReversal = new() { Text = "عكس مجدول", AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
     private readonly DateTimePicker _scheduledReversalDate = new() { Width = 130, Format = DateTimePickerFormat.Short };
     private readonly DateTimePicker _adjustmentReverseAsOf = new() { Width = 130, Format = DateTimePickerFormat.Short };
+    private readonly ComboBox _operationalPeriod = CreateCombo(230);
     private readonly TextBox _currencyText = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 3 };
     private readonly DateTimePicker _rateDate = new() { Width = 130, Format = DateTimePickerFormat.Short };
     private readonly ComboBox _ratePurpose = CreateCombo();
@@ -101,6 +104,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         tabs.TabPages.Add(CreatePeriodsTab());
         tabs.TabPages.Add(CreateFiscalYearsTab());
         tabs.TabPages.Add(CreateAdjustmentsTab());
+        tabs.TabPages.Add(CreateOperationalPostingTab());
         tabs.TabPages.Add(CreateConfigurationTab());
         tabs.TabPages.Add(CreateRatesTab());
         tabs.TabPages.Add(CreateForeignItemsTab());
@@ -187,6 +191,31 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         return page;
     }
 
+    private TabPage CreateOperationalPostingTab()
+    {
+        var page = new TabPage("الترحيل التشغيلي");
+        var split = new SplitContainer
+        {
+            Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 260
+        };
+        var stockGroup = new GroupBox { Text = "حركات المخزون المعتمدة", Dock = DockStyle.Fill };
+        stockGroup.Controls.Add(_stockPostingGrid);
+        stockGroup.Controls.Add(CommandBar(
+            Labeled("الفترة المحاسبية", _operationalPeriod),
+            ActionButton("ترحيل حركة المخزون", (_, _) => Run(() =>
+                new OperationalPostingService(_context).CreateInventoryMovementDraft(
+                    (int)SelectedId(_stockPostingGrid), SelectedLookup(_operationalPeriod), Actor(), Reason())))));
+        var vatGroup = new GroupBox { Text = "إقرارات VAT المقدمة", Dock = DockStyle.Fill };
+        vatGroup.Controls.Add(_vatPostingGrid);
+        vatGroup.Controls.Add(CommandBar(ActionButton("ترحيل تسوية إقرار VAT", (_, _) => Run(() =>
+            new OperationalPostingService(_context).CreateVatReturnSettlementDraft(
+                (int)SelectedId(_vatPostingGrid), SelectedLookup(_operationalPeriod), Actor(), Reason())))));
+        split.Panel1.Controls.Add(stockGroup);
+        split.Panel2.Controls.Add(vatGroup);
+        page.Controls.Add(split);
+        return page;
+    }
+
     private TabPage CreateConfigurationTab()
     {
         var page = new TabPage("الإعداد المحاسبي");
@@ -255,6 +284,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             LoadPeriods();
             LoadFiscalYears();
             LoadAdjustments();
+            LoadOperationalPostings();
             LoadConfigurations();
             LoadRates();
             LoadItems();
@@ -317,6 +347,30 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             value.CreatedBy, value.CreatedAtUtc
         }).ToList();
 
+    private void LoadOperationalPostings()
+    {
+        _stockPostingGrid.DataSource = _context.StockMovements.AsNoTracking()
+            .Where(value => value.IsApproved && !value.IsRejected && !value.IsCancelled)
+            .OrderByDescending(value => value.MovementDate).Take(500)
+            .Select(value => new
+            {
+                value.Id, value.MovementDate, Type = value.MovementType.ToString(),
+                Item = value.InventoryItem.Name, value.Quantity, value.TotalCost, value.TotalAmount,
+                Reference = value.Reference ?? value.ReferenceNumber
+            }).ToList();
+        _vatPostingGrid.DataSource = _context.VATReturns.AsNoTracking()
+            .Where(value => value.Status == VATReturnStatus.Submitted
+                || value.Status == VATReturnStatus.Paid || value.Status == VATReturnStatus.Closed)
+            .OrderByDescending(value => value.PeriodEndDate).Take(200)
+            .Select(value => new
+            {
+                value.Id, value.PeriodNumber, value.PeriodStartDate, value.PeriodEndDate,
+                Status = value.Status.ToString(), value.SubmissionDate,
+                OutputVat = value.Box6_VATOnSales, InputVat = value.Box10_VATOnPurchases,
+                NetVat = value.Box15_NetVATDueForPeriod
+            }).ToList();
+    }
+
     private void LoadConfigurations() => _configurationGrid.DataSource = _context.AccountingConfigurations.AsNoTracking()
         .OrderByDescending(value => value.Version).Select(value => new
         {
@@ -348,6 +402,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         Bind(_settlementPeriod, periods);
         Bind(_closingPeriod, periods);
         Bind(_adjustmentPeriod, periods);
+        Bind(_operationalPeriod, periods);
         var accounts = _context.LedgerAccounts.AsNoTracking().Where(value => value.IsActive && value.AllowsPosting
                 && value.CurrencyCode == GeneralLedgerService.FunctionalCurrencyCode)
             .OrderBy(value => value.Code).Select(value => new { value.Id, value.Code, value.NameAr, value.Type }).ToList();

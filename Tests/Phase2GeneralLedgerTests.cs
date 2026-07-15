@@ -359,6 +359,64 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void ApprovedInventoryMovements_PostDetailedCostFlowsAndRejectAmbiguousTypes()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var saleId = database.SeedApprovedStockMovement(StockMovementType.Sale, 100m);
+        var wasteId = database.SeedApprovedStockMovement(StockMovementType.Waste, 40m);
+        var increaseId = database.SeedApprovedStockMovement(StockMovementType.AdjustmentIncrease, 25m);
+        var purchaseId = database.SeedApprovedStockMovement(StockMovementType.Purchase, 60m);
+        var posting = new OperationalPostingService(database.Context);
+
+        var sale = posting.CreateInventoryMovementDraft(saleId, database.PeriodId, "inventory-accountant", "Approved sale cost");
+        var waste = posting.CreateInventoryMovementDraft(wasteId, database.PeriodId, "inventory-accountant", "Approved waste write-off");
+        var increase = posting.CreateInventoryMovementDraft(increaseId, database.PeriodId, "inventory-accountant", "Approved count increase");
+
+        Assert.Contains(database.LinesWithAccountCodes(sale.Id), line => line.Code == "5100" && line.Debit == 100m);
+        Assert.Contains(database.LinesWithAccountCodes(sale.Id), line => line.Code == "1130" && line.Credit == 100m);
+        Assert.Contains(database.LinesWithAccountCodes(waste.Id), line => line.Code == "5410" && line.Debit == 40m);
+        Assert.Contains(database.LinesWithAccountCodes(increase.Id), line => line.Code == "1130" && line.Debit == 25m);
+        Assert.Contains(database.LinesWithAccountCodes(increase.Id), line => line.Code == "4200" && line.Credit == 25m);
+        Assert.Throws<InvalidOperationException>(() => posting.CreateInventoryMovementDraft(
+            saleId, database.PeriodId, "inventory-accountant", "Duplicate sale cost"));
+        Assert.Throws<InvalidOperationException>(() => posting.CreateInventoryMovementDraft(
+            purchaseId, database.PeriodId, "inventory-accountant", "Must use purchase receipt"));
+        Assert.Equal(3, database.Context.OperationalPostingRecords.Count());
+    }
+
+    [Fact]
+    public void SubmittedVatReturns_ReclassifyToPayableOrReceivableAndRequireReconciliation()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var payableId = database.SeedSubmittedVatReturn(150m, 30m, "202601");
+        var receivableId = database.SeedSubmittedVatReturn(20m, 50m, "202602");
+        var adjustedId = database.SeedSubmittedVatReturn(75m, 25m, "202603");
+        var adjusted = database.Context.VATReturns.Single(value => value.Id == adjustedId);
+        adjusted.Box12_Adjustments = 5m;
+        adjusted.Box15_NetVATDueForPeriod = 55m;
+        database.Context.SaveChanges();
+        var posting = new OperationalPostingService(database.Context);
+
+        var payable = posting.CreateVatReturnSettlementDraft(
+            payableId, database.PeriodId, "tax-accountant", "Submitted VAT payable return");
+        var receivable = posting.CreateVatReturnSettlementDraft(
+            receivableId, database.PeriodId, "tax-accountant", "Submitted VAT refund return");
+        var payableLines = database.LinesWithAccountCodes(payable.Id);
+        var receivableLines = database.LinesWithAccountCodes(receivable.Id);
+
+        Assert.Contains(payableLines, line => line.Code == "2200" && line.Debit == 150m);
+        Assert.Contains(payableLines, line => line.Code == "1140" && line.Credit == 30m);
+        Assert.Contains(payableLines, line => line.Code == "2210" && line.Credit == 120m);
+        Assert.Contains(receivableLines, line => line.Code == "2200" && line.Debit == 20m);
+        Assert.Contains(receivableLines, line => line.Code == "1140" && line.Credit == 50m);
+        Assert.Contains(receivableLines, line => line.Code == "1150" && line.Debit == 30m);
+        Assert.Throws<InvalidOperationException>(() => posting.CreateVatReturnSettlementDraft(
+            adjustedId, database.PeriodId, "tax-accountant", "Unsupported VAT adjustment"));
+    }
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1131,6 +1189,7 @@ public sealed class Phase2GeneralLedgerTests
             Assert.Contains("الفترات المالية", names);
             Assert.Contains("السنوات المالية", names);
             Assert.Contains("التسويات", names);
+            Assert.Contains("الترحيل التشغيلي", names);
             Assert.Contains("الإعداد المحاسبي", names);
             Assert.Contains("أسعار الصرف", names);
             Assert.Contains("البنود والعملات الأجنبية", names);
@@ -1370,6 +1429,48 @@ public sealed class Phase2GeneralLedgerTests
             var service = new AccountingConfigurationService(Context);
             var configuration = service.CreatePilotDraft("configuration-owner");
             service.Approve(configuration.Id, "independent-accountant", "Pilot map reviewed");
+        }
+
+        public int SeedApprovedStockMovement(StockMovementType type, decimal amount)
+        {
+            var item = new InventoryItem
+            {
+                Name = $"Accounting inventory {Guid.NewGuid():N}", Category = InventoryCategory.Feed,
+                Unit = "kg", CurrentStock = 100m, MinimumStock = 0m, MaximumStock = 1_000m,
+                UnitCost = 10m, Status = InventoryStatus.Active, CreatedAt = DateTime.UtcNow
+            };
+            var movement = new StockMovement
+            {
+                InventoryItem = item, MovementDate = new DateTime(2026, 1, 20), MovementType = type,
+                Quantity = amount / 10m, UnitCost = 10m, TotalCost = amount,
+                Reference = $"MOV-{Guid.NewGuid():N}", IsApproved = true,
+                CreatedAt = DateTime.UtcNow, CreatedBy = "inventory-approver"
+            };
+            Context.Add(movement);
+            Context.SaveChanges();
+            return movement.Id;
+        }
+
+        public int SeedSubmittedVatReturn(decimal outputVat, decimal inputVat, string periodNumber)
+        {
+            var user = new User
+            {
+                Username = $"vat-{Guid.NewGuid():N}", PasswordHash = "test-hash", FullName = "VAT Test User",
+                Role = UserRole.Accountant, IsActive = true, CreatedBy = "test"
+            };
+            var vatReturn = new VATReturn
+            {
+                PeriodNumber = periodNumber, PeriodStartDate = new DateTime(2026, 1, 1),
+                PeriodEndDate = new DateTime(2026, 1, 31), DueDate = new DateTime(2026, 2, 28),
+                SubmissionDate = new DateTime(2026, 1, 31), Status = VATReturnStatus.Submitted,
+                TaxRegistrationNumber = "123456789012345", Box6_VATOnSales = outputVat,
+                Box10_VATOnPurchases = inputVat, Box11_NetVATDue = outputVat - inputVat,
+                Box13_TotalVATDue = outputVat - inputVat, Box15_NetVATDueForPeriod = outputVat - inputVat,
+                CreatedBy = user, CreatedDate = DateTime.UtcNow
+            };
+            Context.Add(vatReturn);
+            Context.SaveChanges();
+            return vatReturn.Id;
         }
 
         public int AccountId(string code) => Context.LedgerAccounts.Single(item => item.Code == code).Id;

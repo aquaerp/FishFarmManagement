@@ -49,7 +49,9 @@ public enum PostingEventType
     CustomerPaymentReceived,
     SupplierPaymentCompleted,
     PayrollApproved,
-    DepreciationApproved
+    DepreciationApproved,
+    InventoryMovementApproved,
+    VatReturnSubmitted
 }
 public enum PostingComponent
 {
@@ -64,7 +66,14 @@ public enum PostingComponent
     SalariesPayable,
     PayrollWithholdingsPayable,
     DepreciationExpense,
-    AccumulatedDepreciation
+    AccumulatedDepreciation,
+    InventoryAsset,
+    CostOfGoodsSold,
+    InventoryConsumptionExpense,
+    InventoryLossExpense,
+    InventoryAdjustmentGain,
+    VatPayable,
+    VatReceivable
 }
 
 public sealed class LedgerAccount

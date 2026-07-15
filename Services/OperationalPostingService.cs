@@ -153,6 +153,89 @@ public sealed class OperationalPostingService
             });
     }
 
+    public JournalEntry CreateInventoryMovementDraft(int stockMovementId, int fiscalPeriodId, string actor, string reason)
+    {
+        var movement = _context.StockMovements.AsNoTracking().Include(item => item.InventoryItem)
+            .SingleOrDefault(item => item.Id == stockMovementId)
+            ?? throw new InvalidOperationException("The stock movement does not exist.");
+        if (!movement.IsApproved || movement.IsRejected || movement.IsCancelled)
+            throw new InvalidOperationException("Only an approved, active stock movement can be transferred to accounting.");
+        if (movement.Quantity <= 0m)
+            throw new InvalidOperationException("The stock movement quantity must be positive.");
+        var amount = movement.TotalCost > 0m
+            ? movement.TotalCost
+            : movement.TotalAmount > 0m
+                ? movement.TotalAmount
+                : movement.Quantity * (movement.UnitCost > 0m ? movement.UnitCost : movement.InventoryItem.UnitCost);
+        amount = decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
+        EnsurePositiveSarAmount(amount);
+
+        var postings = movement.MovementType switch
+        {
+            StockMovementType.Sale => InventoryDecrease(PostingComponent.CostOfGoodsSold, amount, "Cost of inventory sold"),
+            StockMovementType.Consumption => InventoryDecrease(PostingComponent.InventoryConsumptionExpense, amount, "Inventory consumed in operations"),
+            StockMovementType.Damage or StockMovementType.Expiry or StockMovementType.Expired
+                or StockMovementType.Loss or StockMovementType.Waste or StockMovementType.AdjustmentDecrease =>
+                InventoryDecrease(PostingComponent.InventoryLossExpense, amount, "Inventory loss or write-down"),
+            StockMovementType.Found or StockMovementType.AdjustmentIncrease => new[]
+            {
+                new ComponentPosting(PostingComponent.InventoryAsset, amount, 0m, "Approved inventory increase"),
+                new ComponentPosting(PostingComponent.InventoryAdjustmentGain, 0m, amount, "Inventory adjustment gain")
+            },
+            StockMovementType.Purchase => throw new InvalidOperationException(
+                "Purchase stock is posted from the approved purchase receipt to prevent duplicate inventory recognition."),
+            StockMovementType.Transfer => throw new InvalidOperationException(
+                "A transfer within the same inventory ledger has no general-ledger entry."),
+            _ => throw new InvalidOperationException(
+                "This stock movement type requires a dedicated, unambiguous accounting workflow before transfer.")
+        };
+        var reference = movement.Reference ?? movement.ReferenceNumber ?? $"STOCK-{movement.Id}";
+        return CreateMappedDraft(
+            PostingEventType.InventoryMovementApproved, nameof(StockMovement), movement.Id.ToString(),
+            movement.MovementDate, fiscalPeriodId,
+            $"Approved {movement.MovementType} movement for {movement.InventoryItem.Name}", reference,
+            actor, reason, postings);
+    }
+
+    public JournalEntry CreateVatReturnSettlementDraft(int vatReturnId, int fiscalPeriodId, string actor, string reason)
+    {
+        var vatReturn = _context.VATReturns.AsNoTracking().SingleOrDefault(item => item.Id == vatReturnId)
+            ?? throw new InvalidOperationException("The VAT return does not exist.");
+        if (vatReturn.Status is not (VATReturnStatus.Submitted or VATReturnStatus.Paid or VATReturnStatus.Closed)
+            || !vatReturn.SubmissionDate.HasValue)
+            throw new InvalidOperationException("Only a submitted VAT return with a submission date can be transferred to accounting.");
+        if (vatReturn.Box12_Adjustments != 0m || vatReturn.Box14_RecoverablePreviousPeriod != 0m)
+            throw new InvalidOperationException(
+                "VAT return adjustments and prior-period recoverable balances require an accountant-approved adjustment workflow.");
+        var outputVat = vatReturn.Box6_VATOnSales;
+        var inputVat = vatReturn.Box10_VATOnPurchases;
+        if (outputVat < 0m || inputVat < 0m || decimal.Round(outputVat, 2) != outputVat || decimal.Round(inputVat, 2) != inputVat)
+            throw new InvalidOperationException("VAT return amounts must be non-negative SAR values with two-decimal precision.");
+        var net = outputVat - inputVat;
+        if (outputVat == 0m && inputVat == 0m)
+            throw new InvalidOperationException("The VAT return has no tax balances to settle.");
+        if (vatReturn.Box15_NetVATDueForPeriod != net)
+            throw new InvalidOperationException("The VAT return net amount does not reconcile to output VAT less input VAT.");
+
+        var postings = new List<ComponentPosting>();
+        if (outputVat > 0m) postings.Add(new ComponentPosting(PostingComponent.OutputVat, outputVat, 0m, "Clear output VAT"));
+        if (inputVat > 0m) postings.Add(new ComponentPosting(PostingComponent.InputVat, 0m, inputVat, "Clear recoverable input VAT"));
+        if (net > 0m) postings.Add(new ComponentPosting(PostingComponent.VatPayable, 0m, net, "Net VAT payable"));
+        if (net < 0m) postings.Add(new ComponentPosting(PostingComponent.VatReceivable, -net, 0m, "Net VAT receivable"));
+
+        return CreateMappedDraft(
+            PostingEventType.VatReturnSubmitted, nameof(VATReturn), vatReturn.Id.ToString(),
+            vatReturn.SubmissionDate.Value.Date, fiscalPeriodId,
+            $"Submitted VAT return {vatReturn.PeriodNumber}", $"VAT-{vatReturn.PeriodNumber}",
+            actor, reason, postings);
+    }
+
+    private static ComponentPosting[] InventoryDecrease(PostingComponent expenseComponent, decimal amount, string description) =>
+    [
+        new ComponentPosting(expenseComponent, amount, 0m, description),
+        new ComponentPosting(PostingComponent.InventoryAsset, 0m, amount, "Inventory asset decrease")
+    ];
+
     private JournalEntry CreateOperationalDraft(
         PostingEventType eventType,
         string sourceEntityType,
