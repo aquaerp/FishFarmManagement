@@ -589,6 +589,33 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void PilotInventoryCount_VarianceIsWithinOnePercentAndFullyApproved()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var item = NewInventoryItem("Pilot count sample", 100m, 10m);
+        database.Context.Add(item);
+        database.Context.SaveChanges();
+        var service = new InventoryCountService(database.Context);
+        var count = service.CreateDraft(new InventoryCountDraftRequest(
+            InventoryCountType.Periodic, new DateTime(2026, 1, 31), "G3-PILOT-COUNT", [item.Id]),
+            "pilot-counter", "Signed pilot sample opened");
+        service.RecordActualQuantity(count.Id, item.Id, 100.5m, "Documented scale tolerance",
+            "pilot-counter", "Signed count sheet recorded");
+        service.Submit(count.Id, "pilot-counter", "Submit signed pilot sample");
+        var result = service.Approve(count.Id, database.PeriodId, "pilot-reviewer",
+            "Accountant reviewed variance evidence");
+
+        var variancePercent = Math.Abs(100.5m - 100m) / 100m * 100m;
+        Assert.Equal(0.5m, variancePercent);
+        Assert.True(variancePercent <= 1m);
+        Assert.Equal(InventoryCountStatus.Approved, result.Count.Status);
+        Assert.Single(result.Movements);
+        Assert.Single(result.JournalEntries);
+        Assert.Equal(JournalEntryStatus.Posted, result.JournalEntries[0].Status);
+    }
+
+    [Fact]
     public void InventoryCountApproval_RollsBackWhenBookBalanceChangedAfterSnapshot()
     {
         using var database = LedgerTestDatabase.Create();
@@ -654,6 +681,10 @@ public sealed class Phase2GeneralLedgerTests
     {
         using var database = LedgerTestDatabase.Create();
         var receivingId = database.SeedPurchaseReceivingForInventory(20m);
+        var receivingForPosting = database.Context.PurchaseReceivings.Single(value => value.Id == receivingId);
+        receivingForPosting.SupplierInvoiceNumber = "COST-SUPPLIER-INVOICE-001";
+        receivingForPosting.SupplierInvoiceAmount = 110m;
+        database.Context.SaveChanges();
         new PurchaseReceivingInventoryService(database.Context).ApproveAndAddToInventory(
             receivingId, "receiving-reviewer", "Received batches verified");
         var receivedItem = database.Context.PurchaseReceivingItems.Include(value => value.InventoryItem).Include(value => value.PurchaseReceiving)
@@ -751,6 +782,10 @@ public sealed class Phase2GeneralLedgerTests
         var receivingId = database.SeedPurchaseReceivingForInventory(20m);
         new PurchaseReceivingInventoryService(database.Context).ApproveAndAddToInventory(
             receivingId, "receiving-reviewer", "Received batch approved");
+        var approvedReceiving = database.Context.PurchaseReceivings.Include(value => value.PurchaseOrder)
+            .Single(value => value.Id == receivingId);
+        approvedReceiving.SupplierInvoiceAmount = approvedReceiving.PurchaseOrder.Total;
+        database.Context.SaveChanges();
         var receivedItem = database.Context.PurchaseReceivingItems.Include(value => value.InventoryItem)
             .OrderBy(value => value.Id).First(value => value.PurchaseReceivingId == receivingId);
         var cycle = new ProductionCycle
@@ -814,6 +849,44 @@ public sealed class Phase2GeneralLedgerTests
         var costedOutput = database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == output.Id);
         Assert.Equal(5m, costedOutput.CurrentStock);
         Assert.Equal(2m, costedOutput.UnitCost);
+        database.ApprovePilotConfiguration();
+        var reconciliationService = new InventoryGeneralLedgerReconciliationService(database.Context);
+        var beforePosting = reconciliationService.Run(new DateTime(2026, 1, 31),
+            "reconciliation-accountant", "Pre-posting exception evidence");
+        Assert.False(beforePosting.IsPassed);
+        var posting = new OperationalPostingService(database.Context);
+        var ledger = new GeneralLedgerService(database.Context);
+        void ApproveAndPost(JournalEntry entry)
+        {
+            ledger.Approve(entry.Id, "journal-reviewer", "Reconciliation source reviewed");
+            ledger.Post(entry.Id, "journal-poster", "Reconciliation source posted");
+        }
+        ApproveAndPost(posting.CreatePurchaseReceiptDraft(receivingId, database.PeriodId,
+            "journal-maker", "Recognize received inventory"));
+        var financialCostEvents = database.Context.ProductionCostEvents.AsNoTracking()
+            .Where(value => value.Amount > 0m && value.EventType != ProductionCostEventType.PondTransfer)
+            .OrderBy(value => value.Id).ToArray();
+        Assert.Equal(3, financialCostEvents.Length);
+        foreach (var costEvent in financialCostEvents)
+        {
+            ApproveAndPost(posting.CreateProductionCostEventDraft(costEvent.Id, database.PeriodId,
+                "journal-maker", "Transfer production cost to general ledger"));
+        }
+        Assert.Throws<InvalidOperationException>(() => posting.CreateInventoryMovementDraft(
+            issue.Id, database.PeriodId, "journal-maker", "Prevent duplicate production expense"));
+        var reconciliation = reconciliationService.Run(new DateTime(2026, 1, 31),
+            "reconciliation-accountant", "Month-end inventory and WIP reconciliation");
+        Assert.True(reconciliation.IsPassed,
+            $"qty={reconciliation.QuantityExceptionCount}, valuation={reconciliation.ValuationExceptionCount}, " +
+            $"inventory={reconciliation.InventorySubledgerValue}/{reconciliation.InventoryGeneralLedgerValue}, " +
+            $"wip={reconciliation.WorkInProgressSubledgerValue}/{reconciliation.WorkInProgressGeneralLedgerValue}; " +
+            reconciliation.EvidenceJson);
+        Assert.Equal(100m, reconciliation.InventorySubledgerValue);
+        Assert.Equal(100m, reconciliation.InventoryGeneralLedgerValue);
+        Assert.Equal(8m, reconciliation.WorkInProgressSubledgerValue);
+        Assert.Equal(8m, reconciliation.WorkInProgressGeneralLedgerValue);
+        Assert.Equal(0, reconciliation.QuantityExceptionCount);
+        Assert.Equal(0, reconciliation.ValuationExceptionCount);
         database.Context.ChangeTracker.Clear();
         var protectedEvent = database.Context.ProductionCostEvents.First();
         protectedEvent.Amount += 1m;
@@ -1616,6 +1689,12 @@ public sealed class Phase2GeneralLedgerTests
             Assert.Contains("احتساب تكلفة النفوق", costingButtons);
             Assert.Contains("نقل تكلفة الإنتاج بين الأحواض", costingButtons);
             Assert.Contains("رسملة منتج الحصاد بالمخزون", costingButtons);
+            using var reconciliationForm = new InventoryReconciliationForm(database.Context,
+                new OperationalPostingService(database.Context),
+                new InventoryGeneralLedgerReconciliationService(database.Context));
+            var reconciliationButtons = Descendants(reconciliationForm).OfType<Button>().Select(value => value.Text).ToArray();
+            Assert.Contains("إنشاء قيد تكلفة الإنتاج", reconciliationButtons);
+            Assert.Contains("تشغيل مطابقة المخزون مع الأستاذ", reconciliationButtons);
         }
         finally
         {

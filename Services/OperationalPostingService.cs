@@ -162,6 +162,11 @@ public sealed class OperationalPostingService
             throw new InvalidOperationException("Only an approved, active stock movement can be transferred to accounting.");
         if (movement.Quantity <= 0m)
             throw new InvalidOperationException("The stock movement quantity must be positive.");
+        if (movement.MovementType == StockMovementType.Consumption
+            && _context.ProductionCostEvents.Any(value => value.StockMovementId == movement.Id
+                && value.EventType == ProductionCostEventType.InputConsumption))
+            throw new InvalidOperationException(
+                "Production consumption must be posted from its production cost event so it enters work in progress.");
         var amount = movement.TotalCost > 0m
             ? movement.TotalCost
             : movement.TotalAmount > 0m
@@ -195,6 +200,54 @@ public sealed class OperationalPostingService
             movement.MovementDate, fiscalPeriodId,
             $"Approved {movement.MovementType} movement for {movement.InventoryItem.Name}", reference,
             actor, reason, postings);
+    }
+
+    public JournalEntry CreateProductionCostEventDraft(long productionCostEventId, int fiscalPeriodId,
+        string actor, string reason)
+    {
+        var costEvent = _context.ProductionCostEvents.AsNoTracking()
+            .SingleOrDefault(value => value.Id == productionCostEventId)
+            ?? throw new InvalidOperationException("The production cost event does not exist.");
+        if (costEvent.Amount <= 0m || decimal.Round(costEvent.Amount, 2) != costEvent.Amount)
+            throw new InvalidOperationException("Only a positive valued production cost event requires a general-ledger entry.");
+        var postings = costEvent.EventType switch
+        {
+            ProductionCostEventType.InputConsumption => new[]
+            {
+                new ComponentPosting(PostingComponent.WorkInProgressInventory, costEvent.Amount, 0m,
+                    "Production input charged to work in progress"),
+                new ComponentPosting(PostingComponent.InventoryAsset, 0m, costEvent.Amount,
+                    "Input inventory issued to production")
+            },
+            ProductionCostEventType.DirectCost => new[]
+            {
+                new ComponentPosting(PostingComponent.WorkInProgressInventory, costEvent.Amount, 0m,
+                    "Direct production cost charged to work in progress"),
+                new ComponentPosting(PostingComponent.ProductionCostClearing, 0m, costEvent.Amount,
+                    "Direct production cost clearing")
+            },
+            ProductionCostEventType.AbnormalMortality => new[]
+            {
+                new ComponentPosting(PostingComponent.InventoryLossExpense, costEvent.Amount, 0m,
+                    "Abnormal mortality loss"),
+                new ComponentPosting(PostingComponent.WorkInProgressInventory, 0m, costEvent.Amount,
+                    "Abnormal mortality removed from work in progress")
+            },
+            ProductionCostEventType.HarvestCapitalization => new[]
+            {
+                new ComponentPosting(PostingComponent.InventoryAsset, costEvent.Amount, 0m,
+                    "Harvest product capitalized in finished inventory"),
+                new ComponentPosting(PostingComponent.WorkInProgressInventory, 0m, costEvent.Amount,
+                    "Harvest cost released from work in progress")
+            },
+            ProductionCostEventType.NormalMortality or ProductionCostEventType.PondTransfer =>
+                throw new InvalidOperationException("This production cost event does not change general-ledger account totals."),
+            _ => throw new InvalidOperationException("The production cost event type has no approved posting rule.")
+        };
+        return CreateMappedDraft(
+            PostingEventType.ProductionCostEventApproved, nameof(ProductionCostEvent), costEvent.Id.ToString(),
+            costEvent.EventDate, fiscalPeriodId, $"Production cost: {costEvent.EventType} / {costEvent.Reference}",
+            costEvent.Reference, actor, reason, postings);
     }
 
     public JournalEntry CreateVatReturnSettlementDraft(int vatReturnId, int fiscalPeriodId, string actor, string reason)

@@ -219,6 +219,7 @@ namespace FishFarmManager.Forms
             // قائمة المحاسبة المالية
             var accountingMenu = new ToolStripMenuItem("المحاسبة المالية");
             accountingMenu.DropDownItems.Add("إدارة المحاسبة", null, AccountingManagement_Click);
+            accountingMenu.DropDownItems.Add("مطابقة المخزون مع الأستاذ", null, InventoryReconciliation_Click);
             accountingMenu.DropDownItems.Add(new ToolStripSeparator());
             accountingMenu.DropDownItems.Add("لوحة التحكم المالية", null, FinancialDashboard_Click);
             accountingMenu.DropDownItems.Add("قائمة الدخل", null, IncomeStatement_Click);
@@ -1083,6 +1084,17 @@ namespace FishFarmManager.Forms
                 MessageBox.Show($"تعذر فتح الشاشة: {ex.Message}", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void InventoryReconciliation_Click(object? sender, EventArgs e)
+        {
+            if (!AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager, UserRole.Accountant))
+            {
+                MessageBox.Show("هذه الشاشة متاحة للمدير والمحاسب فقط.", "صلاحيات غير كافية",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            ShowChildForm(_serviceProvider.GetRequiredService<InventoryReconciliationForm>());
         }
 
         private void IncomeStatement_Click(object? sender, EventArgs e)

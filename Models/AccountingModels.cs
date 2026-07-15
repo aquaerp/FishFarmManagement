@@ -51,6 +51,7 @@ public enum PostingEventType
     PayrollApproved,
     DepreciationApproved,
     InventoryMovementApproved,
+    ProductionCostEventApproved,
     VatReturnSubmitted
 }
 public enum PostingComponent
@@ -72,6 +73,8 @@ public enum PostingComponent
     InventoryConsumptionExpense,
     InventoryLossExpense,
     InventoryAdjustmentGain,
+    WorkInProgressInventory,
+    ProductionCostClearing,
     VatPayable,
     VatReceivable
 }

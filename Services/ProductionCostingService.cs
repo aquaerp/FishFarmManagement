@@ -51,6 +51,10 @@ public sealed class ProductionCostingService
         if (!movement.IsApproved || movement.IsRejected || movement.IsCancelled
             || movement.MovementType != StockMovementType.Consumption || movement.TotalCost <= 0m)
             throw new InvalidOperationException("Only an approved, valued consumption movement can enter production cost.");
+        if (_context.OperationalPostingRecords.Any(value => value.EventType == PostingEventType.InventoryMovementApproved
+            && value.SourceEntityType == nameof(StockMovement) && value.SourceEntityId == movement.Id.ToString()))
+            throw new InvalidOperationException(
+                "This consumption was already posted as an operating expense; reverse it before production capitalization.");
         var allocations = _context.TraceabilityAllocations.AsNoTracking()
             .Where(value => value.StockMovementId == stockMovementId && value.PondId == pondId
                 && value.AllocationType == TraceabilityAllocationType.InputConsumption).ToArray();

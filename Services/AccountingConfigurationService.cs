@@ -8,8 +8,8 @@ namespace FishFarmManager.Services;
 public sealed class AccountingConfigurationService
 {
     public const string PilotConfigurationName = "Saudi Pilot Chart of Accounts";
-    public const int PilotConfigurationVersion = 3;
-    private const int RequiredPilotMappingCount = 24;
+    public const int PilotConfigurationVersion = 4;
+    private const int RequiredPilotMappingCount = 28;
     private readonly FishFarmContext _context;
 
     public AccountingConfigurationService(FishFarmContext context) => _context = context;
@@ -51,6 +51,10 @@ public sealed class AccountingConfigurationService
                 Map(PostingEventType.InventoryMovementApproved, PostingComponent.InventoryConsumptionExpense, accounts["5400"]),
                 Map(PostingEventType.InventoryMovementApproved, PostingComponent.InventoryLossExpense, accounts["5410"]),
                 Map(PostingEventType.InventoryMovementApproved, PostingComponent.InventoryAdjustmentGain, accounts["4200"]),
+                Map(PostingEventType.ProductionCostEventApproved, PostingComponent.InventoryAsset, accounts["1130"]),
+                Map(PostingEventType.ProductionCostEventApproved, PostingComponent.WorkInProgressInventory, accounts["1160"]),
+                Map(PostingEventType.ProductionCostEventApproved, PostingComponent.InventoryLossExpense, accounts["5410"]),
+                Map(PostingEventType.ProductionCostEventApproved, PostingComponent.ProductionCostClearing, accounts["2160"]),
                 Map(PostingEventType.VatReturnSubmitted, PostingComponent.OutputVat, accounts["2200"]),
                 Map(PostingEventType.VatReturnSubmitted, PostingComponent.InputVat, accounts["1140"]),
                 Map(PostingEventType.VatReturnSubmitted, PostingComponent.VatPayable, accounts["2210"]),
@@ -131,6 +135,7 @@ public sealed class AccountingConfigurationService
         Ensure("1130", "المخزون", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.Inventory);
         Ensure("1140", "ضريبة القيمة المضافة القابلة للاسترداد", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.OtherCurrentAsset);
         Ensure("1150", "صافي ضريبة القيمة المضافة المستردة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.OtherCurrentAsset);
+        Ensure("1160", "إنتاج تحت التشغيل", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.Inventory);
         Ensure("1200", "الأصول البيولوجية", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1000");
         Ensure("1500", "الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Debit, false, "1000");
         Ensure("1510", "تكلفة الأصول الثابتة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1500", FinancialStatementCategory.FixedAssetCost);
@@ -139,6 +144,7 @@ public sealed class AccountingConfigurationService
         Ensure("2100", "الذمم الدائنة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.AccountsPayable);
         Ensure("2110", "رواتب مستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.SalariesPayable);
         Ensure("2120", "استقطاعات رواتب مستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.OtherCurrentLiability);
+        Ensure("2160", "مقاصة تكاليف الإنتاج", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.OtherCurrentLiability);
         Ensure("2200", "ضريبة القيمة المضافة المستحقة", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.TaxesPayable);
         Ensure("2210", "صافي ضريبة القيمة المضافة واجبة السداد", LedgerAccountType.Liability, AccountNormalBalance.Credit, true, "2000", FinancialStatementCategory.TaxesPayable);
         Ensure("3000", "حقوق الملكية", LedgerAccountType.Equity, AccountNormalBalance.Credit, false);

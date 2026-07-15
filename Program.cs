@@ -148,6 +148,7 @@ namespace FishFarmManager
             services.AddScoped<AccountingConfigurationService>();
             services.AddScoped<OperationalPostingService>();
             services.AddScoped<ProductionCostingService>();
+            services.AddScoped<InventoryGeneralLedgerReconciliationService>();
             services.AddScoped<FiscalYearClosingService>();
             services.AddScoped<AccountingAdjustmentService>();
             services.AddScoped<ForeignExchangeRateService>();
@@ -187,6 +188,7 @@ namespace FishFarmManager
             services.AddTransient<InventoryCountForm>();
             services.AddTransient<OperationalTraceabilityForm>();
             services.AddTransient<ProductionCostingForm>();
+            services.AddTransient<InventoryReconciliationForm>();
             services.AddTransient<StockMovementForm>();
             
             // Authentication

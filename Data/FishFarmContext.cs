@@ -57,6 +57,7 @@ namespace FishFarmManager.Data
         public DbSet<TraceabilityLot> TraceabilityLots { get; set; }
         public DbSet<TraceabilityAllocation> TraceabilityAllocations { get; set; }
         public DbSet<ProductionCostEvent> ProductionCostEvents { get; set; }
+        public DbSet<InventoryLedgerReconciliation> InventoryLedgerReconciliations { get; set; }
 
         // Supplier System
         public DbSet<Supplier> Suppliers { get; set; }
@@ -426,6 +427,26 @@ namespace FishFarmManager.Data
                     table.HasCheckConstraint("CK_ProductionCostEvent_TransferShape",
                         "(EventType = 4 AND DestinationPondId IS NOT NULL AND DestinationPondId <> PondId AND CAST(QuantityKg AS NUMERIC) > 0 AND CAST(Amount AS NUMERIC) > 0) OR " +
                         "(EventType <> 4 AND DestinationPondId IS NULL)");
+                });
+            });
+
+            modelBuilder.Entity<InventoryLedgerReconciliation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.InventorySubledgerValue).HasPrecision(18, 2);
+                entity.Property(e => e.InventoryGeneralLedgerValue).HasPrecision(18, 2);
+                entity.Property(e => e.InventoryDifference).HasPrecision(18, 2);
+                entity.Property(e => e.WorkInProgressSubledgerValue).HasPrecision(18, 2);
+                entity.Property(e => e.WorkInProgressGeneralLedgerValue).HasPrecision(18, 2);
+                entity.Property(e => e.WorkInProgressDifference).HasPrecision(18, 2);
+                entity.Property(e => e.EvidenceJson).IsRequired();
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Reason).IsRequired().HasMaxLength(500);
+                entity.HasIndex(e => e.AsOfDate);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_InventoryLedgerReconciliation_Counts",
+                        "InventoryItemCount >= 0 AND QuantityExceptionCount >= 0 AND ValuationExceptionCount >= 0");
                 });
             });
         }

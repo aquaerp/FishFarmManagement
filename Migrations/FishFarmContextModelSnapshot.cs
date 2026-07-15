@@ -1778,6 +1778,78 @@ namespace FishFarmManager.Migrations
                     });
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.InventoryLedgerReconciliation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AsOfDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("InventoryDifference")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("InventoryGeneralLedgerValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("InventoryItemCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("InventorySubledgerValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsPassed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityExceptionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ValuationExceptionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("WorkInProgressDifference")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("WorkInProgressGeneralLedgerValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("WorkInProgressSubledgerValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AsOfDate");
+
+                    b.ToTable("InventoryLedgerReconciliations", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryLedgerReconciliation_Counts", "InventoryItemCount >= 0 AND QuantityExceptionCount >= 0 AND ValuationExceptionCount >= 0");
+                        });
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.InventoryItem", b =>
                 {
                     b.Property<int>("Id")

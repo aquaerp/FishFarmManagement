@@ -48,3 +48,23 @@ public sealed record PondProductionCostBalance(
     decimal TransfersOut,
     decimal HarvestedCost,
     decimal WorkInProgressBalance);
+
+public sealed class InventoryLedgerReconciliation
+{
+    public long Id { get; set; }
+    public DateTime AsOfDate { get; set; }
+    public int InventoryItemCount { get; set; }
+    public int QuantityExceptionCount { get; set; }
+    public int ValuationExceptionCount { get; set; }
+    public decimal InventorySubledgerValue { get; set; }
+    public decimal InventoryGeneralLedgerValue { get; set; }
+    public decimal InventoryDifference { get; set; }
+    public decimal WorkInProgressSubledgerValue { get; set; }
+    public decimal WorkInProgressGeneralLedgerValue { get; set; }
+    public decimal WorkInProgressDifference { get; set; }
+    public bool IsPassed { get; set; }
+    public string EvidenceJson { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+}
