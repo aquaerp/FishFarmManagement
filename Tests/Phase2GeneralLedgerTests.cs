@@ -509,6 +509,45 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void InventoryDraftMaintenance_IsOwnerOnlyAuditedAndDoesNotChangeStock()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var item = new InventoryItem
+        {
+            Name = "Draft workflow item", Category = InventoryCategory.Feed, Unit = "kg",
+            CurrentStock = 10m, MinimumStock = 0m, MaximumStock = 100m,
+            UnitCost = 10m, Status = InventoryStatus.Active, IsActive = true, CreatedAt = DateTime.UtcNow
+        };
+        database.Context.Add(item);
+        database.Context.SaveChanges();
+        var service = new InventoryTransactionService(database.Context);
+        var draft = service.CreateDraft(new InventoryMovementDraftRequest(
+            item.Id, StockMovementType.Sale, 2m, null, new DateTime(2026, 1, 15), "DRAFT-001"),
+            "movement-maker", "Initial draft");
+
+        var updated = service.UpdateDraft(draft.Id, new InventoryMovementDraftRequest(
+            item.Id, StockMovementType.Consumption, 3m, null, new DateTime(2026, 1, 16), "DRAFT-001-R1"),
+            "movement-maker", "Correct movement classification");
+        Assert.Equal(3m, updated.Quantity);
+        Assert.Equal(StockMovementType.Consumption, updated.MovementType);
+        Assert.Equal(10m, database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == item.Id).CurrentStock);
+        Assert.Throws<InvalidOperationException>(() => service.UpdateDraft(draft.Id,
+            new InventoryMovementDraftRequest(item.Id, StockMovementType.Sale, 1m, null,
+                new DateTime(2026, 1, 17), "DRAFT-OTHER", null),
+            "other-user", "Unauthorized draft change"));
+
+        service.DeleteDraft(draft.Id, "movement-maker", "Draft no longer required");
+        Assert.Empty(database.Context.StockMovements);
+        Assert.Equal(10m, database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == item.Id).CurrentStock);
+        var actions = database.Context.AccountingAuditEvents.AsNoTracking()
+            .Where(value => value.EntityType == nameof(StockMovement) && value.EntityId == draft.Id.ToString())
+            .Select(value => value.Action).ToArray();
+        Assert.Contains("CreateDraft", actions);
+        Assert.Contains("UpdateDraft", actions);
+        Assert.Contains("DeleteDraft", actions);
+    }
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1285,6 +1324,10 @@ public sealed class Phase2GeneralLedgerTests
             Assert.Contains("الإعداد المحاسبي", names);
             Assert.Contains("أسعار الصرف", names);
             Assert.Contains("البنود والعملات الأجنبية", names);
+            using var movementForm = new StockMovementForm(database.Context);
+            var movementButtons = Descendants(movementForm).OfType<Button>().Select(value => value.Text).ToArray();
+            Assert.Contains("حفظ مسودة", movementButtons);
+            Assert.Contains("اعتماد وتطبيق", movementButtons);
         }
         finally
         {
@@ -1292,6 +1335,9 @@ public sealed class Phase2GeneralLedgerTests
             activityField.SetValue(null, previousActivity);
         }
     }
+
+    private static IEnumerable<Control> Descendants(Control root) => root.Controls.Cast<Control>()
+        .SelectMany(control => new[] { control }.Concat(Descendants(control)));
 
     private sealed class LedgerTestDatabase : IDisposable
     {

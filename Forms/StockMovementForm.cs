@@ -20,11 +20,15 @@ namespace FishFarmManager.Forms
         private ComboBox _itemComboBox = null!;
         private ComboBox _movementTypeComboBox = null!;
         private NumericUpDown _quantityNumeric = null!;
+        private NumericUpDown _unitCostNumeric = null!;
         private DateTimePicker _datePicker = null!;
+        private TextBox _referenceTextBox = null!;
         private TextBox _notesTextBox = null!;
+        private TextBox _actionReasonTextBox = null!;
         private Button _addButton = null!;
         private Button _updateButton = null!;
         private Button _deleteButton = null!;
+        private Button _approveButton = null!;
         private int _selectedMovementId = -1;
 
         public StockMovementForm(FishFarmContext context)
@@ -76,7 +80,7 @@ namespace FishFarmManager.Forms
             this.Controls.Add(_movementsGrid);
 
             // إنشاء شريط الأزرار
-            _addButton = ThemeManager.CreateSuccessButton("إضافة حركة");
+            _addButton = ThemeManager.CreateSuccessButton("حفظ مسودة");
             _addButton.Click += AddButton_Click;
             
             _updateButton = ThemeManager.CreatePrimaryButton("تحديث");
@@ -87,17 +91,21 @@ namespace FishFarmManager.Forms
             _deleteButton.Enabled = false;
             _deleteButton.Click += DeleteButton_Click;
 
+            _approveButton = ThemeManager.CreateSuccessButton("اعتماد وتطبيق");
+            _approveButton.Enabled = false;
+            _approveButton.Click += ApproveButton_Click;
+
             var refreshButton = ThemeManager.CreateSecondaryButton("تحديث البيانات");
             refreshButton.Click += async (s, e) => await LoadDataAsync();
 
-            var buttonBar = CreateButtonBar(_addButton, _updateButton, _deleteButton, refreshButton);
+            var buttonBar = CreateButtonBar(_addButton, _updateButton, _deleteButton, _approveButton, refreshButton);
             this.Controls.Add(buttonBar);
         }
 
         private Panel CreateControlPanel()
         {
             var panel = new Panel();
-            panel.Height = 150;
+            panel.Height = 180;
             panel.Dock = DockStyle.Top;
             panel.Padding = new Padding(10);
 
@@ -123,7 +131,14 @@ namespace FishFarmManager.Forms
             _movementTypeComboBox.Location = new Point(450, y - 5);
             _movementTypeComboBox.Size = new Size(controlWidth, 25);
             _movementTypeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            _movementTypeComboBox.Items.AddRange(new[] { "إدخال", "إخراج", "تعديل", "إرجاع", "هالك" });
+            _movementTypeComboBox.DataSource = new[]
+            {
+                StockMovementType.Sale, StockMovementType.Consumption, StockMovementType.Damage,
+                StockMovementType.Expiry, StockMovementType.Expired, StockMovementType.Loss,
+                StockMovementType.Waste, StockMovementType.AdjustmentIncrease,
+                StockMovementType.AdjustmentDecrease, StockMovementType.Found
+            };
+            _movementTypeComboBox.SelectedIndexChanged += (_, _) => UpdateCostInputState();
             panel.Controls.Add(_movementTypeComboBox);
 
             y += spacing;
@@ -137,7 +152,7 @@ namespace FishFarmManager.Forms
             _quantityNumeric.Size = new Size(controlWidth, 25);
             _quantityNumeric.Minimum = 0.01m;
             _quantityNumeric.Maximum = 999999;
-            _quantityNumeric.DecimalPlaces = 2;
+            _quantityNumeric.DecimalPlaces = 3;
             panel.Controls.Add(_quantityNumeric);
 
             // التاريخ
@@ -150,6 +165,15 @@ namespace FishFarmManager.Forms
             _datePicker.Value = DateTime.Now;
             panel.Controls.Add(_datePicker);
 
+            var costLabel = CreateLabel("تكلفة الوارد:", 670, y);
+            panel.Controls.Add(costLabel);
+            _unitCostNumeric = new NumericUpDown
+            {
+                Location = new Point(790, y - 5), Size = new Size(170, 25),
+                Minimum = 0m, Maximum = 999999999m, DecimalPlaces = 2, ThousandsSeparator = true
+            };
+            panel.Controls.Add(_unitCostNumeric);
+
             y += spacing;
 
             // الملاحظات
@@ -160,6 +184,17 @@ namespace FishFarmManager.Forms
             _notesTextBox.Location = new Point(120, y - 5);
             _notesTextBox.Size = new Size(530, 25);
             panel.Controls.Add(_notesTextBox);
+
+            var referenceLabel = CreateLabel("المرجع:", 670, y);
+            panel.Controls.Add(referenceLabel);
+            _referenceTextBox = new TextBox { Location = new Point(790, y - 5), Size = new Size(170, 25) };
+            panel.Controls.Add(_referenceTextBox);
+
+            y += spacing;
+            var reasonLabel = CreateLabel("سبب العملية:", 10, y);
+            panel.Controls.Add(reasonLabel);
+            _actionReasonTextBox = new TextBox { Location = new Point(120, y - 5), Size = new Size(840, 25) };
+            panel.Controls.Add(_actionReasonTextBox);
 
             return panel;
         }
@@ -178,6 +213,7 @@ namespace FishFarmManager.Forms
             // إضافة الأعمدة
             grid.Columns.Add(new DataGridViewTextBoxColumn 
             { 
+                Name = "Id",
                 DataPropertyName = "Id", 
                 HeaderText = "المعرف", 
                 Width = 60, 
@@ -196,6 +232,17 @@ namespace FishFarmManager.Forms
                 DataPropertyName = "MovementType", 
                 HeaderText = "نوع الحركة", 
                 Width = 100 
+            });
+
+            grid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = "Status", HeaderText = "الحالة", Width = 90
+            });
+
+            grid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = "TotalCost", HeaderText = "قيمة الحركة", Width = 110,
+                DefaultCellStyle = new DataGridViewCellStyle { Format = "N2", Alignment = DataGridViewContentAlignment.MiddleRight }
             });
 
             grid.Columns.Add(new DataGridViewTextBoxColumn 
@@ -235,6 +282,11 @@ namespace FishFarmManager.Forms
                 Width = 100 
             });
 
+            grid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = "ApprovedByUsername", HeaderText = "المعتمد", Width = 100
+            });
+
             return grid;
         }
 
@@ -263,10 +315,13 @@ namespace FishFarmManager.Forms
                         ItemName = sm.InventoryItem.Name,
                         MovementType = sm.MovementType.ToString(),
                         sm.Quantity,
+                        Status = sm.IsApproved ? "معتمدة" : "مسودة",
+                        sm.TotalCost,
                         Unit = sm.InventoryItem.Unit,
                         sm.MovementDate,
                         sm.Notes,
-                        sm.CreatedBy
+                        sm.CreatedBy,
+                        sm.ApprovedByUsername
                     })
                     .ToListAsync();
 
@@ -286,14 +341,14 @@ namespace FishFarmManager.Forms
                 _selectedMovementId = (int)selectedRow.Cells["Id"].Value;
                 
                 LoadMovementData(_selectedMovementId);
-                _updateButton.Enabled = true;
-                _deleteButton.Enabled = true;
+                UpdateActionButtons();
             }
             else
             {
                 _selectedMovementId = -1;
                 _updateButton.Enabled = false;
                 _deleteButton.Enabled = false;
+                _approveButton.Enabled = false;
                 ClearForm();
             }
         }
@@ -309,10 +364,13 @@ namespace FishFarmManager.Forms
                 if (movement != null)
                 {
                     _itemComboBox.SelectedValue = movement.InventoryItemId;
-                    _movementTypeComboBox.Text = movement.MovementType.ToString();
+                    _movementTypeComboBox.SelectedItem = movement.MovementType;
                     _quantityNumeric.Value = movement.Quantity;
+                    _unitCostNumeric.Value = movement.UnitCost;
                     _datePicker.Value = movement.MovementDate;
+                    _referenceTextBox.Text = movement.Reference ?? movement.ReferenceNumber ?? "";
                     _notesTextBox.Text = movement.Notes ?? "";
+                    UpdateCostInputState();
                 }
             }
             catch (Exception ex)
@@ -326,8 +384,11 @@ namespace FishFarmManager.Forms
             _itemComboBox.SelectedIndex = -1;
             _movementTypeComboBox.SelectedIndex = -1;
             _quantityNumeric.Value = 0.01m;
+            _unitCostNumeric.Value = 0m;
             _datePicker.Value = DateTime.Now;
+            _referenceTextBox.Clear();
             _notesTextBox.Clear();
+            _actionReasonTextBox.Clear();
         }
 
         private async void AddButton_Click(object? sender, EventArgs e)
@@ -343,24 +404,9 @@ namespace FishFarmManager.Forms
                     return;
                 }
 
-                var movement = new StockMovement
-                {
-                    InventoryItemId = (int)_itemComboBox.SelectedValue!,
-                    MovementType = Enum.Parse<StockMovementType>(_movementTypeComboBox.Text),
-                    Quantity = _quantityNumeric.Value,
-                    MovementDate = _datePicker.Value,
-                    Notes = _notesTextBox.Text,
-                    CreatedBy = AuthenticationService.CurrentUsername,
-                    CreatedAt = DateTime.Now
-                };
-
-                _context.StockMovements.Add(movement);
-                await _context.SaveChangesAsync();
-
-                // تحديث كمية المخزون
-                await UpdateInventoryQuantityAsync(movement);
-
-                ThemeManager.ShowSuccess("تم إضافة حركة المخزون بنجاح", "نجح");
+                new InventoryTransactionService(_context).CreateDraft(
+                    BuildDraftRequest(), AuthenticationService.CurrentUsername, ActionReason());
+                ThemeManager.ShowSuccess("تم حفظ الحركة كمسودة دون تغيير رصيد المخزون.", "نجح");
                 await LoadDataAsync();
                 ClearForm();
             }
@@ -380,35 +426,10 @@ namespace FishFarmManager.Forms
 
             try
             {
-                var movement = await _context.StockMovements.FindAsync(_selectedMovementId);
-                if (movement != null)
-                {
-                    if (_itemComboBox.SelectedValue == null)
-                    {
-                        ThemeManager.ShowWarning("الرجاء اختيار عنصر", "تحذير");
-                        return;
-                    }
-
-                    // إرجاع الكمية القديمة
-                    await RevertInventoryQuantityAsync(movement);
-
-                    // تحديث البيانات
-                    movement.InventoryItemId = (int)_itemComboBox.SelectedValue!;
-                    movement.MovementType = Enum.Parse<StockMovementType>(_movementTypeComboBox.Text);
-                    movement.Quantity = _quantityNumeric.Value;
-                    movement.MovementDate = _datePicker.Value;
-                    movement.Notes = _notesTextBox.Text;
-                    movement.UpdatedBy = AuthenticationService.CurrentUsername;
-                    movement.UpdatedAt = DateTime.Now;
-
-                    await _context.SaveChangesAsync();
-
-                    // تطبيق الكمية الجديدة
-                    await UpdateInventoryQuantityAsync(movement);
-
-                    ThemeManager.ShowSuccess("تم تحديث حركة المخزون بنجاح", "نجح");
-                    await LoadDataAsync();
-                }
+                new InventoryTransactionService(_context).UpdateDraft(
+                    _selectedMovementId, BuildDraftRequest(), AuthenticationService.CurrentUsername, ActionReason());
+                ThemeManager.ShowSuccess("تم تحديث المسودة دون تغيير رصيد المخزون.", "نجح");
+                await LoadDataAsync();
             }
             catch (Exception ex)
             {
@@ -426,18 +447,10 @@ namespace FishFarmManager.Forms
 
             try
             {
-                var movement = await _context.StockMovements.FindAsync(_selectedMovementId);
-                if (movement != null)
-                {
-                    // إرجاع الكمية
-                    await RevertInventoryQuantityAsync(movement);
-
-                    _context.StockMovements.Remove(movement);
-                    await _context.SaveChangesAsync();
-
-                    ThemeManager.ShowSuccess("تم حذف حركة المخزون بنجاح", "نجح");
-                    await LoadDataAsync();
-                }
+                new InventoryTransactionService(_context).DeleteDraft(
+                    _selectedMovementId, AuthenticationService.CurrentUsername, ActionReason());
+                ThemeManager.ShowSuccess("تم حذف مسودة الحركة دون تغيير رصيد المخزون.", "نجح");
+                await LoadDataAsync();
             }
             catch (Exception ex)
             {
@@ -468,70 +481,52 @@ namespace FishFarmManager.Forms
             return true;
         }
 
-        private async Task UpdateInventoryQuantityAsync(StockMovement movement)
+        private async void ApproveButton_Click(object? sender, EventArgs e)
         {
-            var item = await _context.InventoryItems.FindAsync(movement.InventoryItemId);
-            if (item != null)
+            if (_selectedMovementId == -1) return;
+            if (!ThemeManager.Confirm("سيتم تطبيق الحركة على الرصيد والتكلفة. هل تريد الاعتماد؟", "تأكيد الاعتماد")) return;
+            try
             {
-                switch (movement.MovementType)
-                {
-                    case StockMovementType.Purchase:
-                    case StockMovementType.Production:
-                    case StockMovementType.Return:
-                    case StockMovementType.Found:
-                    case StockMovementType.AdjustmentIncrease:
-                        item.CurrentStock += movement.Quantity;
-                        break;
-                    case StockMovementType.Sale:
-                    case StockMovementType.Consumption:
-                    case StockMovementType.Loss:
-                    case StockMovementType.Damage:
-                    case StockMovementType.Waste:
-                    case StockMovementType.Expiry:
-                    case StockMovementType.Expired:
-                    case StockMovementType.AdjustmentDecrease:
-                        item.CurrentStock -= movement.Quantity;
-                        break;
-                    case StockMovementType.Adjustment:
-                        item.CurrentStock = movement.Quantity;
-                        break;
-                }
-
-                await _context.SaveChangesAsync();
+                new InventoryTransactionService(_context).Approve(
+                    _selectedMovementId, AuthenticationService.CurrentUsername, ActionReason());
+                ThemeManager.ShowSuccess("تم اعتماد الحركة وتحديث الرصيد والتكلفة ذريًا.", "نجح");
+                await LoadDataAsync();
             }
+            catch (Exception ex) { ThemeManager.ShowError($"تعذر اعتماد الحركة: {ex.Message}", "خطأ"); }
         }
 
-        private async Task RevertInventoryQuantityAsync(StockMovement movement)
+        private InventoryMovementDraftRequest BuildDraftRequest()
         {
-            var item = await _context.InventoryItems.FindAsync(movement.InventoryItemId);
-            if (item != null)
-            {
-                switch (movement.MovementType)
-                {
-                    case StockMovementType.Purchase:
-                    case StockMovementType.Production:
-                    case StockMovementType.Return:
-                    case StockMovementType.Found:
-                    case StockMovementType.AdjustmentIncrease:
-                        item.CurrentStock -= movement.Quantity;
-                        break;
-                    case StockMovementType.Sale:
-                    case StockMovementType.Consumption:
-                    case StockMovementType.Loss:
-                    case StockMovementType.Damage:
-                    case StockMovementType.Waste:
-                    case StockMovementType.Expiry:
-                    case StockMovementType.Expired:
-                    case StockMovementType.AdjustmentDecrease:
-                        item.CurrentStock += movement.Quantity;
-                        break;
-                    case StockMovementType.Adjustment:
-                        // للضبط، نحتاج لحفظ القيمة القديمة في مكان آخر
-                        break;
-                }
+            if (_itemComboBox.SelectedValue is not int itemId || _movementTypeComboBox.SelectedItem is not StockMovementType type)
+                throw new InvalidOperationException("حدد الصنف ونوع الحركة.");
+            var inbound = type is StockMovementType.Found or StockMovementType.AdjustmentIncrease;
+            return new InventoryMovementDraftRequest(
+                itemId, type, _quantityNumeric.Value, inbound ? _unitCostNumeric.Value : null,
+                _datePicker.Value, _referenceTextBox.Text, _notesTextBox.Text);
+        }
 
-                await _context.SaveChangesAsync();
-            }
+        private string ActionReason() => string.IsNullOrWhiteSpace(_actionReasonTextBox.Text)
+            ? throw new InvalidOperationException("أدخل سبب العملية أو مرجع المستند.")
+            : _actionReasonTextBox.Text.Trim();
+
+        private void UpdateCostInputState()
+        {
+            if (_unitCostNumeric == null) return;
+            var inbound = _movementTypeComboBox.SelectedItem is StockMovementType.Found or StockMovementType.AdjustmentIncrease;
+            _unitCostNumeric.Enabled = inbound;
+            if (!inbound) _unitCostNumeric.Value = 0m;
+        }
+
+        private void UpdateActionButtons()
+        {
+            var movement = _context.StockMovements.AsNoTracking().SingleOrDefault(value => value.Id == _selectedMovementId);
+            if (movement == null) return;
+            var canModify = AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager, UserRole.Accountant, UserRole.InventoryStaff);
+            var isOwner = string.Equals(movement.CreatedBy, AuthenticationService.CurrentUsername, StringComparison.OrdinalIgnoreCase);
+            var draft = !movement.IsApproved && !movement.IsRejected && !movement.IsCancelled;
+            _updateButton.Enabled = canModify && draft && isOwner;
+            _deleteButton.Enabled = canModify && draft && isOwner;
+            _approveButton.Enabled = canModify && draft && !isOwner;
         }
 
         #region Permission Management - إدارة الصلاحيات
@@ -549,14 +544,10 @@ namespace FishFarmManager.Forms
                 UserRole.InventoryStaff
             );
 
-            bool canDelete = AuthenticationService.HasPermission(
-                UserRole.Admin, 
-                UserRole.Manager
-            );
-
             _addButton.Enabled = canModify;
-            _updateButton.Enabled = canModify;
-            _deleteButton.Enabled = canDelete;
+            _updateButton.Enabled = false;
+            _deleteButton.Enabled = false;
+            _approveButton.Enabled = false;
             
             // تعطيل الحقول للمشاهدين فقط
             if (!canModify)
@@ -564,8 +555,11 @@ namespace FishFarmManager.Forms
                 _itemComboBox.Enabled = false;
                 _movementTypeComboBox.Enabled = false;
                 _quantityNumeric.Enabled = false;
+                _unitCostNumeric.Enabled = false;
                 _datePicker.Enabled = false;
+                _referenceTextBox.ReadOnly = true;
                 _notesTextBox.ReadOnly = true;
+                _actionReasonTextBox.ReadOnly = true;
             }
         }
 

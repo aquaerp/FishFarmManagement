@@ -35,24 +35,7 @@ public sealed class InventoryTransactionService
         using var transaction = _context.Database.CurrentTransaction == null
             ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
             : null;
-        if (request.Quantity <= 0m || decimal.Round(request.Quantity, 3) != request.Quantity)
-            throw new InvalidOperationException("Inventory quantity must be positive with no more than three decimal places.");
-        if (string.IsNullOrWhiteSpace(request.Reference))
-            throw new InvalidOperationException("An inventory movement reference is required.");
-        if (request.Reference.Trim().Length > 100)
-            throw new InvalidOperationException("The inventory movement reference cannot exceed 100 characters.");
-        var inbound = IsInbound(request.MovementType);
-        if (!inbound && !IsOutbound(request.MovementType))
-            throw new InvalidOperationException("This movement type requires a dedicated inventory workflow.");
-        if (inbound && (!request.ReceiptUnitCost.HasValue || request.ReceiptUnitCost <= 0m
-                || decimal.Round(request.ReceiptUnitCost.Value, 2) != request.ReceiptUnitCost.Value))
-            throw new InvalidOperationException("Inbound inventory requires a positive SAR unit cost with two-decimal precision.");
-        if (!inbound && request.ReceiptUnitCost.HasValue)
-            throw new InvalidOperationException("Outbound inventory is costed by the approved weighted-average cost, not a manual cost.");
-        if (!_context.InventoryItems.AsNoTracking().Any(item => item.Id == request.InventoryItemId && item.IsActive))
-            throw new InvalidOperationException("The active inventory item does not exist.");
-
-        var unitCost = request.ReceiptUnitCost ?? 0m;
+        var unitCost = ValidateDraftRequest(request);
         var movement = new StockMovement
         {
             InventoryItemId = request.InventoryItemId,
@@ -74,6 +57,50 @@ public sealed class InventoryTransactionService
         _context.SaveChanges();
         transaction?.Commit();
         return movement;
+    }
+
+    public StockMovement UpdateDraft(long movementId, InventoryMovementDraftRequest request, string actor, string reason)
+    {
+        RequireActorAndReason(actor, reason);
+        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        var unitCost = ValidateDraftRequest(request);
+        var movement = _context.StockMovements.SingleOrDefault(value => value.Id == movementId)
+            ?? throw new InvalidOperationException("The inventory movement does not exist.");
+        EnsureDraftOwner(movement, actor);
+        var before = new
+        {
+            movement.InventoryItemId, movement.MovementType, movement.Quantity,
+            movement.UnitCost, movement.MovementDate, movement.Reference
+        };
+        movement.InventoryItemId = request.InventoryItemId;
+        movement.MovementType = request.MovementType;
+        movement.Quantity = request.Quantity;
+        movement.UnitCost = unitCost;
+        movement.TotalCost = decimal.Round(request.Quantity * unitCost, 2, MidpointRounding.AwayFromZero);
+        movement.MovementDate = request.MovementDate;
+        movement.Reference = request.Reference.Trim();
+        movement.ReferenceNumber = request.Reference.Trim();
+        movement.Notes = request.Notes?.Trim();
+        movement.UpdatedBy = actor.Trim();
+        movement.UpdatedAt = DateTime.UtcNow;
+        AddAudit(movement, "UpdateDraft", actor, reason, new { Before = before, After = request });
+        _context.SaveChanges();
+        transaction.Commit();
+        return movement;
+    }
+
+    public void DeleteDraft(long movementId, string actor, string reason)
+    {
+        RequireActorAndReason(actor, reason);
+        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        var movement = _context.StockMovements.SingleOrDefault(value => value.Id == movementId)
+            ?? throw new InvalidOperationException("The inventory movement does not exist.");
+        EnsureDraftOwner(movement, actor);
+        AddAudit(movement, "DeleteDraft", actor, reason,
+            new { movement.InventoryItemId, movement.MovementType, movement.Quantity, movement.Reference });
+        _context.StockMovements.Remove(movement);
+        _context.SaveChanges();
+        transaction.Commit();
     }
 
     public InventoryMovementApprovalResult Approve(long movementId, string approver, string reason)
@@ -168,6 +195,35 @@ public sealed class InventoryTransactionService
         StockMovementType.Sale or StockMovementType.Consumption or StockMovementType.Damage
         or StockMovementType.Expiry or StockMovementType.Expired or StockMovementType.Loss
         or StockMovementType.Waste or StockMovementType.AdjustmentDecrease;
+
+    private decimal ValidateDraftRequest(InventoryMovementDraftRequest request)
+    {
+        if (request.Quantity <= 0m || decimal.Round(request.Quantity, 3) != request.Quantity)
+            throw new InvalidOperationException("Inventory quantity must be positive with no more than three decimal places.");
+        if (string.IsNullOrWhiteSpace(request.Reference))
+            throw new InvalidOperationException("An inventory movement reference is required.");
+        if (request.Reference.Trim().Length > 100)
+            throw new InvalidOperationException("The inventory movement reference cannot exceed 100 characters.");
+        var inbound = IsInbound(request.MovementType);
+        if (!inbound && !IsOutbound(request.MovementType))
+            throw new InvalidOperationException("This movement type requires a dedicated inventory workflow.");
+        if (inbound && (!request.ReceiptUnitCost.HasValue || request.ReceiptUnitCost <= 0m
+                || decimal.Round(request.ReceiptUnitCost.Value, 2) != request.ReceiptUnitCost.Value))
+            throw new InvalidOperationException("Inbound inventory requires a positive SAR unit cost with two-decimal precision.");
+        if (!inbound && request.ReceiptUnitCost.HasValue)
+            throw new InvalidOperationException("Outbound inventory is costed by the approved weighted-average cost, not a manual cost.");
+        if (!_context.InventoryItems.AsNoTracking().Any(item => item.Id == request.InventoryItemId && item.IsActive))
+            throw new InvalidOperationException("The active inventory item does not exist.");
+        return request.ReceiptUnitCost ?? 0m;
+    }
+
+    private static void EnsureDraftOwner(StockMovement movement, string actor)
+    {
+        if (movement.IsApproved || movement.IsRejected || movement.IsCancelled)
+            throw new InvalidOperationException("Only an active draft inventory movement can be changed.");
+        if (!string.Equals(movement.CreatedBy, actor.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Only the movement creator can change or delete its draft.");
+    }
 
     private static void RequireActorAndReason(string actor, string reason)
     {
