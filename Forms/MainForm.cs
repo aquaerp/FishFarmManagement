@@ -206,6 +206,7 @@ namespace FishFarmManager.Forms
             inventoryMenu.DropDownItems.Add("إدارة بنود المخزون", null, ManageInventoryItems_Click);
             inventoryMenu.DropDownItems.Add("حركات المخزون", null, ManageStockMovements_Click);
             inventoryMenu.DropDownItems.Add("تعديلات المخزون والجرد", null, ManageStockAdjustments_Click);
+            inventoryMenu.DropDownItems.Add("التتبع التشغيلي للدفعات", null, ManageOperationalTraceability_Click);
             
             // قائمة المشتريات
             var purchasingMenu = new ToolStripMenuItem("المشتريات");
@@ -1042,6 +1043,12 @@ namespace FishFarmManager.Forms
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void ManageOperationalTraceability_Click(object? sender, EventArgs e)
+        {
+            var form = _serviceProvider.GetRequiredService<OperationalTraceabilityForm>();
+            ShowChildForm(form);
         }
 
         private void AccountingManagement_Click(object? sender, EventArgs e)

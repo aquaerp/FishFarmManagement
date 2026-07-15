@@ -650,6 +650,101 @@ public sealed class Phase2GeneralLedgerTests
     };
 
     [Fact]
+    public void OperationalTraceability_TraversesReceiptConsumptionPondHarvestAndSaleBothDirections()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var receivingId = database.SeedPurchaseReceivingForInventory(20m);
+        new PurchaseReceivingInventoryService(database.Context).ApproveAndAddToInventory(
+            receivingId, "receiving-reviewer", "Received batches verified");
+        var receivedItem = database.Context.PurchaseReceivingItems.Include(value => value.InventoryItem).Include(value => value.PurchaseReceiving)
+            .OrderBy(value => value.Id).First(value => value.PurchaseReceivingId == receivingId);
+        var cycle = new ProductionCycle
+        {
+            Name = "Trace cycle", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 1, 31),
+            Status = CycleStatus.Completed, CycleType = CycleType.GrowOut, InitialFishCount = 100,
+            TotalHarvestWeight = 10m, CreatedAt = DateTime.UtcNow
+        };
+        var pond = new Pond
+        {
+            Name = "Trace pond", Capacity = 100m, Area = 50m, Depth = 2m,
+            Status = PondStatus.Active, PondType = PondType.GrowOut, CreatedAt = DateTime.UtcNow
+        };
+        var cyclePond = new ProductionCyclePond
+        {
+            ProductionCycle = cycle, Pond = pond, StartDate = new DateTime(2026, 1, 1),
+            EndDate = new DateTime(2026, 1, 31), Status = "Completed", CreatedAt = DateTime.UtcNow
+        };
+        database.Context.Add(cyclePond);
+        database.Context.SaveChanges();
+        var inventory = new InventoryTransactionService(database.Context);
+        var issue = inventory.CreateDraft(new InventoryMovementDraftRequest(
+            receivedItem.InventoryItemId, StockMovementType.Consumption, 2m, null,
+            new DateTime(2026, 1, 15), "FEED-ISSUE-001"), "issue-maker", "Feed issue prepared");
+        inventory.Approve(issue.Id, "issue-reviewer", "Feed issue approved");
+        var customer = new Customer
+        {
+            Name = "Trace customer", Type = CustomerType.Wholesale,
+            Status = CustomerStatus.Active, CreatedAt = DateTime.UtcNow
+        };
+        var order = new SalesOrder
+        {
+            OrderNumber = "TRACE-SO-001", OrderDate = new DateTime(2026, 1, 30), Customer = customer,
+            Status = SalesOrderStatus.Completed, SubTotal = 30m, TotalAmount = 30m,
+            RemainingAmount = 30m, CreatedAt = DateTime.UtcNow,
+            Items = new List<SalesOrderItem>
+            {
+                new() { ProductName = "Harvest fish", ProductionCycleId = cycle.Id, Quantity = 3m,
+                    UnitPrice = 10m, Grade = FishGrade.GradeA, SubTotal = 30m, TotalPrice = 30m,
+                    CreatedAt = DateTime.UtcNow }
+            }
+        };
+        database.Context.Add(order);
+        database.Context.SaveChanges();
+
+        var trace = new OperationalTraceabilityService(database.Context);
+        var inputLot = trace.RegisterReceivedInputLot(receivedItem.Id, "trace-user", "Register supplier batch");
+        trace.AllocateInputConsumption(inputLot.Id, issue.Id, cycle.Id, pond.Id, 2m,
+            new DateTime(2026, 1, 15), "CONSUME-001", "trace-user", "Allocate feed to cycle pond");
+        var harvest = trace.RegisterHarvestLot("HARVEST-TRACE-001", cycle.Id, pond.Id, 10m,
+            new DateTime(2026, 1, 29), "HARVEST-SHEET-001", "trace-user", "Register harvest batch");
+        var salesItem = order.Items.Single();
+        trace.AllocateHarvestSale(harvest.Id, salesItem.Id, 3m, new DateTime(2026, 1, 30),
+            "SALE-ALLOC-001", "trace-user", "Allocate harvest to completed sale");
+
+        var forward = Assert.Single(trace.TraceForward(inputLot.LotCode));
+        Assert.Equal("Trace cycle", forward.CycleName);
+        Assert.Equal("Trace pond", forward.PondName);
+        Assert.Equal(harvest.LotCode, forward.HarvestLotCode);
+        Assert.Equal(order.OrderNumber, forward.SalesOrderNumber);
+        var backward = Assert.Single(trace.TraceBackward(salesItem.Id));
+        Assert.Equal(inputLot.LotCode, backward.InputLotCode);
+        Assert.Equal(receivedItem.PurchaseReceiving.ReceivingNumber, backward.InputReceiptReference);
+
+        Assert.Throws<InvalidOperationException>(() => trace.AllocateHarvestSale(harvest.Id, salesItem.Id, 1m,
+            new DateTime(2026, 1, 30), "SALE-OVER-001", "trace-user", "Over allocate sale"));
+        database.Context.ChangeTracker.Clear();
+        var protectedLot = database.Context.TraceabilityLots.First(value => value.Id == inputLot.Id);
+        protectedLot.SourceReference = "TAMPERED";
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public void PurchaseReceiptWithoutSupplierBatch_IsRejectedBeforeInventoryMutation()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var receivingId = database.SeedPurchaseReceivingForInventory(20m);
+        database.Context.PurchaseReceivingItems.First(value => value.PurchaseReceivingId == receivingId).BatchNumber = null;
+        database.Context.SaveChanges();
+
+        Assert.Throws<InvalidOperationException>(() => new PurchaseReceivingInventoryService(database.Context)
+            .ApproveAndAddToInventory(receivingId, "receiving-reviewer", "Traceability batch validation"));
+
+        Assert.Empty(database.Context.StockMovements.AsNoTracking());
+        Assert.All(database.Context.InventoryItems.AsNoTracking().Where(value => value.Name.StartsWith("Atomic receiving")),
+            value => Assert.Equal(0m, value.CurrentStock));
+    }
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1435,6 +1530,11 @@ public sealed class Phase2GeneralLedgerTests
             Assert.Contains("إنشاء مسودة جرد", countButtons);
             Assert.Contains("إرسال للاعتماد", countButtons);
             Assert.Contains("اعتماد وتطبيق وقيد", countButtons);
+            using var traceabilityForm = new OperationalTraceabilityForm(database.Context);
+            var traceabilityButtons = Descendants(traceabilityForm).OfType<Button>().Select(value => value.Text).ToArray();
+            Assert.Contains("تسجيل دفعة المدخل", traceabilityButtons);
+            Assert.Contains("تتبع أمامي حتى البيع", traceabilityButtons);
+            Assert.Contains("تتبع خلفي حتى المدخلات", traceabilityButtons);
         }
         finally
         {

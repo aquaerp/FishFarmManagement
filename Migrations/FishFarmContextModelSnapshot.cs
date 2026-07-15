@@ -3711,6 +3711,62 @@ namespace FishFarmManager.Migrations
                     b.ToTable("SupplierPayments");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.TraceabilityAllocation", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("AllocationType").HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<DateTime>("EventDate").HasColumnType("TEXT");
+                    b.Property<int?>("PondId").HasColumnType("INTEGER");
+                    b.Property<int?>("ProductionCycleId").HasColumnType("INTEGER");
+                    b.Property<decimal>("Quantity").HasPrecision(18, 3).HasColumnType("TEXT");
+                    b.Property<string>("Reference").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<int?>("SalesOrderItemId").HasColumnType("INTEGER");
+                    b.Property<long>("SourceLotId").HasColumnType("INTEGER");
+                    b.Property<int?>("StockMovementId").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("PondId");
+                    b.HasIndex("ProductionCycleId");
+                    b.HasIndex("SalesOrderItemId");
+                    b.HasIndex("SourceLotId");
+                    b.HasIndex("StockMovementId");
+                    b.HasIndex("AllocationType", "SourceLotId", "Reference").IsUnique();
+                    b.ToTable("TraceabilityAllocations", t =>
+                    {
+                        t.HasCheckConstraint("CK_TraceabilityAllocation_PositiveQuantity", "CAST(Quantity AS NUMERIC) > 0");
+                        t.HasCheckConstraint("CK_TraceabilityAllocation_TypeShape", "(AllocationType = 0 AND ProductionCycleId IS NOT NULL AND PondId IS NOT NULL AND StockMovementId IS NOT NULL AND SalesOrderItemId IS NULL) OR (AllocationType = 1 AND ProductionCycleId IS NULL AND PondId IS NULL AND StockMovementId IS NULL AND SalesOrderItemId IS NOT NULL)");
+                    });
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.TraceabilityLot", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<decimal>("InitialQuantity").HasPrecision(18, 3).HasColumnType("TEXT");
+                    b.Property<int?>("InventoryItemId").HasColumnType("INTEGER");
+                    b.Property<int>("Kind").HasColumnType("INTEGER");
+                    b.Property<string>("LotCode").IsRequired().HasMaxLength(120).HasColumnType("TEXT");
+                    b.Property<DateTime>("LotDate").HasColumnType("TEXT");
+                    b.Property<int?>("PondId").HasColumnType("INTEGER");
+                    b.Property<int?>("ProductionCycleId").HasColumnType("INTEGER");
+                    b.Property<int?>("PurchaseReceivingItemId").HasColumnType("INTEGER");
+                    b.Property<string>("SourceReference").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("Unit").IsRequired().HasMaxLength(50).HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("InventoryItemId");
+                    b.HasIndex("LotCode").IsUnique();
+                    b.HasIndex("PondId");
+                    b.HasIndex("ProductionCycleId");
+                    b.HasIndex("PurchaseReceivingItemId").IsUnique();
+                    b.ToTable("TraceabilityLots", t =>
+                    {
+                        t.HasCheckConstraint("CK_TraceabilityLot_KindShape", "(Kind = 0 AND InventoryItemId IS NOT NULL AND PurchaseReceivingItemId IS NOT NULL AND ProductionCycleId IS NULL AND PondId IS NULL) OR (Kind = 1 AND InventoryItemId IS NULL AND PurchaseReceivingItemId IS NULL AND ProductionCycleId IS NOT NULL AND PondId IS NOT NULL)");
+                        t.HasCheckConstraint("CK_TraceabilityLot_PositiveQuantity", "CAST(InitialQuantity AS NUMERIC) > 0");
+                    });
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.TaxInvoice", b =>
                 {
                     b.Property<int>("Id")
@@ -4834,6 +4890,32 @@ namespace FishFarmManager.Migrations
                     b.Navigation("Supplier");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.TraceabilityAllocation", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.Pond", "Pond").WithMany().HasForeignKey("PondId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.ProductionCycle", "ProductionCycle").WithMany().HasForeignKey("ProductionCycleId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.SalesOrderItem", "SalesOrderItem").WithMany().HasForeignKey("SalesOrderItemId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.TraceabilityLot", "SourceLot").WithMany("Allocations").HasForeignKey("SourceLotId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("FishFarmManager.Models.StockMovement", "StockMovement").WithMany().HasForeignKey("StockMovementId").OnDelete(DeleteBehavior.Restrict);
+                    b.Navigation("Pond");
+                    b.Navigation("ProductionCycle");
+                    b.Navigation("SalesOrderItem");
+                    b.Navigation("SourceLot");
+                    b.Navigation("StockMovement");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.TraceabilityLot", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.InventoryItem", "InventoryItem").WithMany().HasForeignKey("InventoryItemId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.Pond", "Pond").WithMany().HasForeignKey("PondId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.ProductionCycle", "ProductionCycle").WithMany().HasForeignKey("ProductionCycleId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.PurchaseReceivingItem", "PurchaseReceivingItem").WithMany().HasForeignKey("PurchaseReceivingItemId").OnDelete(DeleteBehavior.Restrict);
+                    b.Navigation("InventoryItem");
+                    b.Navigation("Pond");
+                    b.Navigation("ProductionCycle");
+                    b.Navigation("PurchaseReceivingItem");
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.TaxInvoice", b =>
                 {
                     b.HasOne("FishFarmManager.Models.Customer", "Customer")
@@ -5019,6 +5101,11 @@ namespace FishFarmManager.Migrations
             modelBuilder.Entity("FishFarmManager.Models.TaxInvoice", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.TraceabilityLot", b =>
+                {
+                    b.Navigation("Allocations");
                 });
 #pragma warning restore 612, 618
         }

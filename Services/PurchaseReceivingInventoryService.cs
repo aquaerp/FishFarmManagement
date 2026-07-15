@@ -57,6 +57,8 @@ public sealed class PurchaseReceivingInventoryService
                 throw new InvalidOperationException($"Receiving item {item.Id} did not pass item-level quality inspection.");
             if (item.UnitPrice <= 0m || decimal.Round(item.UnitPrice, 2) != item.UnitPrice)
                 throw new InvalidOperationException($"Receiving item {item.Id} requires a valid two-decimal unit price.");
+            if (string.IsNullOrWhiteSpace(item.BatchNumber))
+                throw new InvalidOperationException($"Receiving item {item.Id} requires a supplier batch number for traceability.");
             if (!activeInventoryIds.Contains(item.InventoryItemId))
                 throw new InvalidOperationException($"Receiving item {item.Id} does not reference an active inventory item.");
             if (!orderItems.TryGetValue(item.PurchaseOrderItemId, out var orderItem)

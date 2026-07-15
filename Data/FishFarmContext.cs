@@ -54,6 +54,8 @@ namespace FishFarmManager.Data
         public DbSet<InventoryValuation> InventoryValuations { get; set; }
         public DbSet<InventoryCount> InventoryCounts { get; set; }
         public DbSet<InventoryCountLine> InventoryCountLines { get; set; }
+        public DbSet<TraceabilityLot> TraceabilityLots { get; set; }
+        public DbSet<TraceabilityAllocation> TraceabilityAllocations { get; set; }
 
         // Supplier System
         public DbSet<Supplier> Suppliers { get; set; }
@@ -352,6 +354,50 @@ namespace FishFarmManager.Data
                 {
                     table.HasCheckConstraint("CK_InventoryCountLine_BookQuantity", "CAST(BookQuantitySnapshot AS NUMERIC) >= 0");
                     table.HasCheckConstraint("CK_InventoryCountLine_ActualQuantity", "ActualQuantity IS NULL OR CAST(ActualQuantity AS NUMERIC) >= 0");
+                });
+            });
+
+            modelBuilder.Entity<TraceabilityLot>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.LotCode).IsRequired().HasMaxLength(120);
+                entity.HasIndex(e => e.LotCode).IsUnique();
+                entity.Property(e => e.InitialQuantity).HasPrecision(18, 3);
+                entity.Property(e => e.Unit).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.SourceReference).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => e.PurchaseReceivingItemId).IsUnique();
+                entity.HasOne(e => e.InventoryItem).WithMany().HasForeignKey(e => e.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.PurchaseReceivingItem).WithMany().HasForeignKey(e => e.PurchaseReceivingItemId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ProductionCycle).WithMany().HasForeignKey(e => e.ProductionCycleId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Pond).WithMany().HasForeignKey(e => e.PondId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_TraceabilityLot_PositiveQuantity", "CAST(InitialQuantity AS NUMERIC) > 0");
+                    table.HasCheckConstraint("CK_TraceabilityLot_KindShape",
+                        "(Kind = 0 AND InventoryItemId IS NOT NULL AND PurchaseReceivingItemId IS NOT NULL AND ProductionCycleId IS NULL AND PondId IS NULL) OR " +
+                        "(Kind = 1 AND InventoryItemId IS NULL AND PurchaseReceivingItemId IS NULL AND ProductionCycleId IS NOT NULL AND PondId IS NOT NULL)");
+                });
+            });
+
+            modelBuilder.Entity<TraceabilityAllocation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Quantity).HasPrecision(18, 3);
+                entity.Property(e => e.Reference).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => new { e.AllocationType, e.SourceLotId, e.Reference }).IsUnique();
+                entity.HasOne(e => e.SourceLot).WithMany(e => e.Allocations).HasForeignKey(e => e.SourceLotId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.ProductionCycle).WithMany().HasForeignKey(e => e.ProductionCycleId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Pond).WithMany().HasForeignKey(e => e.PondId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.StockMovement).WithMany().HasForeignKey(e => e.StockMovementId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.SalesOrderItem).WithMany().HasForeignKey(e => e.SalesOrderItemId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_TraceabilityAllocation_PositiveQuantity", "CAST(Quantity AS NUMERIC) > 0");
+                    table.HasCheckConstraint("CK_TraceabilityAllocation_TypeShape",
+                        "(AllocationType = 0 AND ProductionCycleId IS NOT NULL AND PondId IS NOT NULL AND StockMovementId IS NOT NULL AND SalesOrderItemId IS NULL) OR " +
+                        "(AllocationType = 1 AND ProductionCycleId IS NULL AND PondId IS NULL AND StockMovementId IS NULL AND SalesOrderItemId IS NOT NULL)");
                 });
             });
         }
