@@ -1129,6 +1129,8 @@ public sealed class Phase2GeneralLedgerTests
             Assert.Equal("إدارة المحاسبة", form.Text);
             Assert.Contains("القيود", names);
             Assert.Contains("الفترات المالية", names);
+            Assert.Contains("السنوات المالية", names);
+            Assert.Contains("التسويات", names);
             Assert.Contains("الإعداد المحاسبي", names);
             Assert.Contains("أسعار الصرف", names);
             Assert.Contains("البنود والعملات الأجنبية", names);

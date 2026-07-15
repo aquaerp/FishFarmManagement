@@ -14,10 +14,24 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private readonly Label _summaryLabel = new() { Dock = DockStyle.Fill, AutoSize = false, Padding = new Padding(20), Font = ThemeManager.SubtitleFont };
     private readonly DataGridView _journalsGrid = CreateGrid();
     private readonly DataGridView _periodsGrid = CreateGrid();
+    private readonly DataGridView _yearsGrid = CreateGrid();
+    private readonly DataGridView _adjustmentsGrid = CreateGrid();
     private readonly DataGridView _configurationGrid = CreateGrid();
     private readonly DataGridView _ratesGrid = CreateGrid();
     private readonly DataGridView _itemsGrid = CreateGrid();
     private readonly DateTimePicker _reversalDate = new() { Width = 130, Format = DateTimePickerFormat.Short };
+    private readonly ComboBox _retainedEarningsAccount = CreateCombo(260);
+    private readonly TextBox _nextYearName = new() { Width = 130 };
+    private readonly DateTimePicker _nextYearStart = new() { Width = 130, Format = DateTimePickerFormat.Short };
+    private readonly DateTimePicker _nextYearEnd = new() { Width = 130, Format = DateTimePickerFormat.Short };
+    private readonly ComboBox _adjustmentPeriod = CreateCombo(230);
+    private readonly DateTimePicker _adjustmentDate = new() { Width = 130, Format = DateTimePickerFormat.Short };
+    private readonly ComboBox _adjustmentType = CreateCombo(170);
+    private readonly TextBox _adjustmentDescription = new() { Width = 220 };
+    private readonly TextBox _adjustmentEvidence = new() { Width = 190 };
+    private readonly CheckBox _scheduleReversal = new() { Text = "عكس مجدول", AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
+    private readonly DateTimePicker _scheduledReversalDate = new() { Width = 130, Format = DateTimePickerFormat.Short };
+    private readonly DateTimePicker _adjustmentReverseAsOf = new() { Width = 130, Format = DateTimePickerFormat.Short };
     private readonly TextBox _currencyText = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 3 };
     private readonly DateTimePicker _rateDate = new() { Width = 130, Format = DateTimePickerFormat.Short };
     private readonly ComboBox _ratePurpose = CreateCombo();
@@ -85,6 +99,8 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         tabs.TabPages.Add(CreateOverviewTab());
         tabs.TabPages.Add(CreateJournalsTab());
         tabs.TabPages.Add(CreatePeriodsTab());
+        tabs.TabPages.Add(CreateFiscalYearsTab());
+        tabs.TabPages.Add(CreateAdjustmentsTab());
         tabs.TabPages.Add(CreateConfigurationTab());
         tabs.TabPages.Add(CreateRatesTab());
         tabs.TabPages.Add(CreateForeignItemsTab());
@@ -121,6 +137,53 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         page.Controls.Add(_periodsGrid);
         page.Controls.Add(CommandBar(ActionButton("إقفال الفترة المحددة", (_, _) => Run(() =>
             new GeneralLedgerService(_context).ClosePeriod((int)SelectedId(_periodsGrid), Actor(), Reason())))));
+        return page;
+    }
+
+    private TabPage CreateFiscalYearsTab()
+    {
+        var page = new TabPage("السنوات المالية");
+        _yearsGrid.SelectionChanged += (_, _) => SuggestNextFiscalYear();
+        var commands = CommandBar(
+            ActionButton("إنشاء أرصدة افتتاحية", (_, _) => CreateOpeningBalances()),
+            Labeled("حساب الأرباح المبقاة", _retainedEarningsAccount),
+            ActionButton("إنشاء قيد الإقفال", (_, _) => Run(() =>
+                new FiscalYearClosingService(_context).CreateYearEndClosingDraft(
+                    (int)SelectedId(_yearsGrid), SelectedLookup(_retainedEarningsAccount), Actor(), Reason()))),
+            ActionButton("إقفال السنة", (_, _) => Run(() =>
+                new FiscalYearClosingService(_context).CloseFiscalYear((int)SelectedId(_yearsGrid), Actor(), Reason()))),
+            Labeled("اسم السنة التالية", _nextYearName), Labeled("البداية", _nextYearStart), Labeled("النهاية", _nextYearEnd),
+            ActionButton("فتح السنة التالية", (_, _) => Run(() =>
+                new FiscalYearClosingService(_context).CreateNextFiscalYearWithOpeningDraft(
+                    (int)SelectedId(_yearsGrid), _nextYearName.Text, _nextYearStart.Value.Date,
+                    _nextYearEnd.Value.Date, Actor(), Reason()))));
+        commands.Height = 120;
+        commands.WrapContents = true;
+        page.Controls.Add(_yearsGrid);
+        page.Controls.Add(commands);
+        return page;
+    }
+
+    private TabPage CreateAdjustmentsTab()
+    {
+        _adjustmentType.DataSource = Enum.GetValues<AccountingAdjustmentType>();
+        _scheduleReversal.CheckedChanged += (_, _) => _scheduledReversalDate.Enabled = _scheduleReversal.Checked;
+        _scheduledReversalDate.Enabled = false;
+        var page = new TabPage("التسويات");
+        var commands = CommandBar(
+            Labeled("الفترة", _adjustmentPeriod), Labeled("تاريخ القيد", _adjustmentDate),
+            Labeled("نوع التسوية", _adjustmentType), Labeled("البيان", _adjustmentDescription),
+            Labeled("المستند المؤيد", _adjustmentEvidence), _scheduleReversal,
+            Labeled("تاريخ العكس", _scheduledReversalDate),
+            ActionButton("إنشاء قيد تسوية", (_, _) => CreateAdjustment()),
+            Labeled("العكس المستحق حتى", _adjustmentReverseAsOf),
+            ActionButton("تنفيذ العكس المستحق", (_, _) => Run(() =>
+                new AccountingAdjustmentService(_context).ReverseDue(
+                    SelectedId(_adjustmentsGrid), _adjustmentReverseAsOf.Value.Date, Actor(), Reason()))));
+        commands.Height = 120;
+        commands.WrapContents = true;
+        page.Controls.Add(_adjustmentsGrid);
+        page.Controls.Add(commands);
         return page;
     }
 
@@ -190,6 +253,8 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             LoadOverview();
             LoadJournals();
             LoadPeriods();
+            LoadFiscalYears();
+            LoadAdjustments();
             LoadConfigurations();
             LoadRates();
             LoadItems();
@@ -236,6 +301,22 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             value.Id, value.Name, value.StartDate, value.EndDate, Status = value.Status.ToString(), value.ClosedBy
         }).ToList();
 
+    private void LoadFiscalYears() => _yearsGrid.DataSource = _context.FiscalYears.AsNoTracking()
+        .OrderByDescending(value => value.StartDate).Select(value => new
+        {
+            value.Id, value.Name, value.StartDate, value.EndDate, value.IsClosed,
+            value.OpeningBalanceJournalEntryId, value.ClosingJournalEntryId, value.ClosedBy
+        }).ToList();
+
+    private void LoadAdjustments() => _adjustmentsGrid.DataSource = _context.AccountingAdjustments.AsNoTracking()
+        .OrderByDescending(value => value.Id).Select(value => new
+        {
+            value.Id, value.JournalEntry.EntryNumber, Type = value.Type.ToString(),
+            value.SupportingDocumentReference, value.ScheduledReversalDate,
+            JournalStatus = value.JournalEntry.Status.ToString(), value.ReversalJournalEntryId,
+            value.CreatedBy, value.CreatedAtUtc
+        }).ToList();
+
     private void LoadConfigurations() => _configurationGrid.DataSource = _context.AccountingConfigurations.AsNoTracking()
         .OrderByDescending(value => value.Version).Select(value => new
         {
@@ -266,6 +347,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             .OrderBy(value => value.StartDate).Select(value => new Lookup<int>(value.Id, $"{value.Name} ({value.EndDate:yyyy-MM-dd})")).ToList();
         Bind(_settlementPeriod, periods);
         Bind(_closingPeriod, periods);
+        Bind(_adjustmentPeriod, periods);
         var accounts = _context.LedgerAccounts.AsNoTracking().Where(value => value.IsActive && value.AllowsPosting
                 && value.CurrencyCode == GeneralLedgerService.FunctionalCurrencyCode)
             .OrderBy(value => value.Code).Select(value => new { value.Id, value.Code, value.NameAr, value.Type }).ToList();
@@ -277,7 +359,61 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             .Select(value => new Lookup<int>(value.Id, $"{value.Code} — {value.NameAr}")).ToList();
         Bind(_gainAccount, gains); Bind(_closingGainAccount, gains);
         Bind(_lossAccount, losses); Bind(_closingLossAccount, losses);
+        Bind(_retainedEarningsAccount, accounts.Where(value => value.Type == LedgerAccountType.Equity)
+            .Select(value => new Lookup<int>(value.Id, $"{value.Code} — {value.NameAr}")).ToList());
         LoadSettlementRates();
+    }
+
+    private void CreateOpeningBalances()
+    {
+        try
+        {
+            var accounts = PostingAccounts(balanceSheetOnly: true);
+            using var dialog = new AccountingJournalLinesDialog(accounts, "إدخال الأرصدة الافتتاحية", balanceSheetOnly: true);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            var balances = dialog.Lines.Select(line => new OpeningBalanceRequest(
+                line.LedgerAccountId, line.Debit, line.Credit, line.Description)).ToArray();
+            new FiscalYearClosingService(_context).CreateOpeningBalanceDraft(
+                (int)SelectedId(_yearsGrid), balances, Actor(), Reason());
+            ShowSuccessAndRefresh();
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    private void CreateAdjustment()
+    {
+        try
+        {
+            using var dialog = new AccountingJournalLinesDialog(
+                PostingAccounts(balanceSheetOnly: false), "إدخال أسطر قيد التسوية", balanceSheetOnly: false);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            new AccountingAdjustmentService(_context).CreateDraft(new AccountingAdjustmentRequest(
+                _adjustmentDate.Value.Date, SelectedLookup(_adjustmentPeriod), _adjustmentDescription.Text,
+                (AccountingAdjustmentType)_adjustmentType.SelectedItem!, _adjustmentEvidence.Text,
+                _scheduleReversal.Checked ? _scheduledReversalDate.Value.Date : null, dialog.Lines),
+                Actor(), Reason());
+            ShowSuccessAndRefresh();
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    private List<(int Id, string Text)> PostingAccounts(bool balanceSheetOnly) => _context.LedgerAccounts.AsNoTracking()
+        .Where(value => value.IsActive && value.AllowsPosting
+            && value.CurrencyCode == GeneralLedgerService.FunctionalCurrencyCode
+            && (!balanceSheetOnly || (value.Type != LedgerAccountType.Revenue && value.Type != LedgerAccountType.Expense)))
+        .OrderBy(value => value.Code)
+        .Select(value => new { value.Id, value.Code, value.NameAr }).AsEnumerable()
+        .Select(value => (value.Id, $"{value.Code} — {value.NameAr}"))
+        .ToList();
+
+    private void SuggestNextFiscalYear()
+    {
+        if (_yearsGrid.CurrentRow == null) return;
+        if (_yearsGrid.CurrentRow.Cells["EndDate"].Value is not DateTime end) return;
+        var start = end.Date.AddDays(1);
+        _nextYearStart.Value = start;
+        _nextYearEnd.Value = start.AddYears(1).AddDays(-1);
+        _nextYearName.Text = start.Year.ToString();
     }
 
     private void LoadSettlementRates()
@@ -318,10 +454,15 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         try
         {
             action();
-            MessageBox.Show("تمت العملية بنجاح.", "إدارة المحاسبة", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            RefreshAll();
+            ShowSuccessAndRefresh();
         }
         catch (Exception ex) { ShowError(ex); }
+    }
+
+    private void ShowSuccessAndRefresh()
+    {
+        MessageBox.Show("تمت العملية بنجاح.", "إدارة المحاسبة", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        RefreshAll();
     }
 
     private string Reason() => string.IsNullOrWhiteSpace(_reasonTextBox.Text)
