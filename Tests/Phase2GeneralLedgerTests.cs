@@ -417,6 +417,55 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void WeightedAverageInventory_ApprovesAtomicallyAndPreventsNegativeOrMutableHistory()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var item = new InventoryItem
+        {
+            Name = "Weighted average feed", Category = InventoryCategory.Feed, Unit = "kg",
+            CurrentStock = 10m, MinimumStock = 0m, MaximumStock = 1_000m,
+            UnitCost = 20m, Status = InventoryStatus.Active, IsActive = true, CreatedAt = DateTime.UtcNow
+        };
+        database.Context.Add(item);
+        database.Context.SaveChanges();
+        var service = new InventoryTransactionService(database.Context);
+        var receipt = service.CreateDraft(new InventoryMovementDraftRequest(
+            item.Id, StockMovementType.Purchase, 10m, 10m, new DateTime(2026, 1, 10), "GRN-WAC-001"),
+            "warehouse-maker", "Received approved feed lot");
+
+        Assert.Throws<InvalidOperationException>(() => service.Approve(
+            receipt.Id, "warehouse-maker", "Self approval must fail"));
+        var receiptResult = service.Approve(receipt.Id, "warehouse-reviewer", "Receipt and invoice matched");
+        Assert.Equal(20m, receiptResult.QuantityAfter);
+        Assert.Equal(15m, receiptResult.WeightedAverageUnitCost);
+        Assert.Equal(100m, receiptResult.MovementValue);
+
+        var issue = service.CreateDraft(new InventoryMovementDraftRequest(
+            item.Id, StockMovementType.Sale, 5m, null, new DateTime(2026, 1, 15), "SO-WAC-001"),
+            "warehouse-maker", "Issue for completed sale");
+        var issueResult = service.Approve(issue.Id, "warehouse-reviewer", "Sale issue checked");
+        Assert.Equal(15m, issueResult.QuantityAfter);
+        Assert.Equal(75m, issueResult.MovementValue);
+        Assert.Equal(2, database.Context.InventoryValuations.Count(value => value.Method == ValuationMethod.WeightedAverage));
+
+        var excessiveIssue = service.CreateDraft(new InventoryMovementDraftRequest(
+            item.Id, StockMovementType.Consumption, 16m, null, new DateTime(2026, 1, 16), "ISS-WAC-002"),
+            "warehouse-maker", "Excessive issue test");
+        Assert.Throws<InvalidOperationException>(() => service.Approve(
+            excessiveIssue.Id, "warehouse-reviewer", "Must not create negative inventory"));
+        Assert.Equal(15m, database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == item.Id).CurrentStock);
+
+        database.Context.ChangeTracker.Clear();
+        var storedItem = database.Context.InventoryItems.Single(value => value.Id == item.Id);
+        storedItem.CurrentStock = -1m;
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+        database.Context.ChangeTracker.Clear();
+        var storedMovement = database.Context.StockMovements.Single(value => value.Id == issue.Id);
+        storedMovement.Notes = "Attempted history rewrite";
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();

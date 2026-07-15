@@ -3382,7 +3382,15 @@ namespace FishFarmManager.Migrations
                     b.Property<int?>("ApprovedById")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ApprovedByUsername")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("ApprovedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ApprovalReason")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("BalanceAfter")

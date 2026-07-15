@@ -304,6 +304,8 @@ namespace FishFarmManager.Data
                 entity.Property(e => e.TotalCost).IsRequired();
                 entity.Property(e => e.Reference).HasMaxLength(100);
                 entity.Property(e => e.Notes).HasMaxLength(500);
+                entity.Property(e => e.ApprovedByUsername).HasMaxLength(100);
+                entity.Property(e => e.ApprovalReason).HasMaxLength(500);
                 entity.Property(e => e.CreatedAt).IsRequired();
                 entity.Property(e => e.UpdatedAt);
 

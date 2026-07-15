@@ -65,6 +65,12 @@ namespace FishFarmManager.Models
 
         public bool IsApproved { get; set; } = false;
 
+        [StringLength(100)]
+        public string? ApprovedByUsername { get; set; }
+
+        [StringLength(500)]
+        public string? ApprovalReason { get; set; }
+
         public int? ApprovedById { get; set; }
         [ForeignKey(nameof(ApprovedById))]
         public Employee? ApprovedBy { get; set; }
