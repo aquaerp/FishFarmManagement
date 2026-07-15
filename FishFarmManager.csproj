@@ -25,6 +25,7 @@
     <!-- Explicit security floors for vulnerable transitive dependencies. -->
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     <PackageReference Include="System.Text.Json" Version="8.0.6" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.4" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

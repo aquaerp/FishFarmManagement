@@ -1,6 +1,6 @@
 namespace FishFarmManager.Models;
 
-public enum ZatcaEnvelopeState { AwaitingCanonicalization, ReadyForSubmission, Submitted, Rejected }
+public enum ZatcaEnvelopeState { AwaitingCanonicalization, AwaitingSignature, ReadyForSubmission, Submitted, Rejected }
 
 public sealed class ZatcaEgsUnit
 {
@@ -35,6 +35,22 @@ public sealed class ZatcaDocumentEnvelope
     public string CreatedBy { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
     public ZatcaOutboxMessage OutboxMessage { get; set; } = null!;
+    public ZatcaCanonicalizationEvidence? CanonicalizationEvidence { get; set; }
+}
+
+public sealed class ZatcaCanonicalizationEvidence
+{
+    public long Id { get; set; }
+    public long ZatcaDocumentEnvelopeId { get; set; }
+    public ZatcaDocumentEnvelope ZatcaDocumentEnvelope { get; set; } = null!;
+    public string CanonicalizationAlgorithm { get; set; } = string.Empty;
+    public string DigestAlgorithm { get; set; } = string.Empty;
+    public string InvoiceHashHex { get; set; } = string.Empty;
+    public string InvoiceHashBase64 { get; set; } = string.Empty;
+    public string CanonicalXmlSha256Base64 { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
 }
 
 public sealed class ZatcaOutboxMessage

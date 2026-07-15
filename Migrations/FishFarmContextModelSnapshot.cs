@@ -4464,6 +4464,23 @@ namespace FishFarmManager.Migrations
                     b.ToTable("VATReturns");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaCanonicalizationEvidence", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<string>("CanonicalXmlSha256Base64").IsRequired().HasMaxLength(44).HasColumnType("TEXT");
+                    b.Property<string>("CanonicalizationAlgorithm").IsRequired().HasMaxLength(200).HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("DigestAlgorithm").IsRequired().HasMaxLength(200).HasColumnType("TEXT");
+                    b.Property<string>("InvoiceHashBase64").IsRequired().HasMaxLength(44).HasColumnType("TEXT");
+                    b.Property<string>("InvoiceHashHex").IsRequired().HasMaxLength(64).HasColumnType("TEXT");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<long>("ZatcaDocumentEnvelopeId").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("ZatcaDocumentEnvelopeId").IsUnique();
+                    b.ToTable("ZatcaCanonicalizationEvidence");
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.ZatcaDocumentEnvelope", b =>
                 {
                     b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -4599,6 +4616,16 @@ namespace FishFarmManager.Migrations
                     b.HasIndex("RecordedByEmployeeId");
 
                     b.ToTable("WaterQualityRecords");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaCanonicalizationEvidence", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.ZatcaDocumentEnvelope", "ZatcaDocumentEnvelope")
+                        .WithOne("CanonicalizationEvidence")
+                        .HasForeignKey("FishFarmManager.Models.ZatcaCanonicalizationEvidence", "ZatcaDocumentEnvelopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                    b.Navigation("ZatcaDocumentEnvelope");
                 });
 
             modelBuilder.Entity("FishFarmManager.Models.ZatcaDocumentEnvelope", b =>
@@ -5394,6 +5421,8 @@ namespace FishFarmManager.Migrations
 
             modelBuilder.Entity("FishFarmManager.Models.ZatcaDocumentEnvelope", b =>
                 {
+                    b.Navigation("CanonicalizationEvidence");
+
                     b.Navigation("OutboxMessage");
                 });
 

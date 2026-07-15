@@ -72,6 +72,36 @@ public sealed class Phase4ZatcaEnvelopeTests
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }
 
+    [Fact]
+    public void Canonicalization_CreatesImmutableEvidenceAndMovesOutboxOnlyToAwaitingSignature()
+    {
+        using var database = TestDatabase.Create();
+        var preparation = new ZatcaEnvelopePreparationService(database.Context);
+        var initialPih = Convert.ToBase64String(new byte[32]);
+        var unit = preparation.RegisterEgsUnit("EGS-PILOT-004", initialPih,
+            "zatca-admin", "Pilot EGS registered");
+        var envelope = preparation.PrepareLocalDraft(unit.Id, nameof(TaxInvoice), "801", Template(),
+            "invoice-issuer", "Ready for canonicalization").Envelope;
+
+        var evidence = new ZatcaCanonicalizationService(database.Context).CanonicalizeAndHash(
+            envelope.Id, "zatca-hash-worker", "ZATCA exclusions and canonical hash applied");
+
+        Assert.Equal(64, evidence.InvoiceHashHex.Length);
+        Assert.Equal(44, evidence.InvoiceHashBase64.Length);
+        Assert.Equal(ZatcaEnvelopeState.AwaitingSignature,
+            database.Context.ZatcaOutboxMessages.AsNoTracking().Single().Status);
+        var storedUnit = database.Context.ZatcaEgsUnits.AsNoTracking().Single();
+        Assert.True(storedUnit.HasOpenEnvelope);
+        Assert.Equal(initialPih, storedUnit.PreviousInvoiceHashBase64);
+        Assert.Throws<InvalidOperationException>(() => new ZatcaCanonicalizationService(database.Context)
+            .CanonicalizeAndHash(envelope.Id, "zatca-hash-worker", "Duplicate must fail"));
+
+        database.Context.ChangeTracker.Clear();
+        var storedEvidence = database.Context.ZatcaCanonicalizationEvidence.Single();
+        storedEvidence.InvoiceHashHex = new string('0', 64);
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
     private static ZatcaUblDocumentRequest Template() =>
         new("INV-1", Guid.Empty, new DateTimeOffset(2026, 7, 16, 9, 0, 0, TimeSpan.FromHours(3)),
             ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.TaxInvoice, 0, "ignored",

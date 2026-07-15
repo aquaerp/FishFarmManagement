@@ -103,6 +103,7 @@ namespace FishFarmManager.Data
         public DbSet<ZatcaEgsUnit> ZatcaEgsUnits { get; set; }
         public DbSet<ZatcaDocumentEnvelope> ZatcaDocumentEnvelopes { get; set; }
         public DbSet<ZatcaOutboxMessage> ZatcaOutboxMessages { get; set; }
+        public DbSet<ZatcaCanonicalizationEvidence> ZatcaCanonicalizationEvidence { get; set; }
 
         // Fixed Assets System
         public DbSet<FixedAsset> FixedAssets { get; set; }
@@ -167,6 +168,21 @@ namespace FishFarmManager.Data
                     .HasForeignKey<ZatcaOutboxMessage>(value => value.ZatcaDocumentEnvelopeId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.ToTable(table => table.HasCheckConstraint("CK_ZatcaOutbox_Attempts", "AttemptCount >= 0"));
+            });
+            modelBuilder.Entity<ZatcaCanonicalizationEvidence>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.CanonicalizationAlgorithm).IsRequired().HasMaxLength(200);
+                entity.Property(value => value.DigestAlgorithm).IsRequired().HasMaxLength(200);
+                entity.Property(value => value.InvoiceHashHex).IsRequired().HasMaxLength(64);
+                entity.Property(value => value.InvoiceHashBase64).IsRequired().HasMaxLength(44);
+                entity.Property(value => value.CanonicalXmlSha256Base64).IsRequired().HasMaxLength(44);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Reason).IsRequired().HasMaxLength(500);
+                entity.HasIndex(value => value.ZatcaDocumentEnvelopeId).IsUnique();
+                entity.HasOne(value => value.ZatcaDocumentEnvelope).WithOne(value => value.CanonicalizationEvidence)
+                    .HasForeignKey<ZatcaCanonicalizationEvidence>(value => value.ZatcaDocumentEnvelopeId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
 
