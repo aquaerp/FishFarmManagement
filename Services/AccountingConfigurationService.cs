@@ -8,7 +8,7 @@ namespace FishFarmManager.Services;
 public sealed class AccountingConfigurationService
 {
     public const string PilotConfigurationName = "Saudi Pilot Chart of Accounts";
-    public const int PilotConfigurationVersion = 4;
+    public const int PilotConfigurationVersion = 5;
     private const int RequiredPilotMappingCount = 28;
     private readonly FishFarmContext _context;
 
@@ -132,6 +132,7 @@ public sealed class AccountingConfigurationService
         Ensure("1100", "الأصول المتداولة", LedgerAccountType.Asset, AccountNormalBalance.Debit, false, "1000");
         Ensure("1110", "النقدية والبنوك", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.Cash);
         Ensure("1120", "الذمم المدينة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.AccountsReceivable);
+        Ensure("1125", "مخصص الخسائر الائتمانية المتوقعة", LedgerAccountType.Asset, AccountNormalBalance.Credit, true, "1100", FinancialStatementCategory.AccountsReceivable);
         Ensure("1130", "المخزون", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.Inventory);
         Ensure("1140", "ضريبة القيمة المضافة القابلة للاسترداد", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.OtherCurrentAsset);
         Ensure("1150", "صافي ضريبة القيمة المضافة المستردة", LedgerAccountType.Asset, AccountNormalBalance.Debit, true, "1100", FinancialStatementCategory.OtherCurrentAsset);
@@ -153,12 +154,15 @@ public sealed class AccountingConfigurationService
         Ensure("4000", "الإيرادات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, false);
         Ensure("4100", "إيرادات المبيعات", LedgerAccountType.Revenue, AccountNormalBalance.Credit, true, "4000", FinancialStatementCategory.SalesRevenue);
         Ensure("4200", "أرباح تسويات المخزون", LedgerAccountType.Revenue, AccountNormalBalance.Credit, true, "4000", FinancialStatementCategory.OtherRevenue);
+        Ensure("4210", "أرباح القيمة العادلة للأصول البيولوجية", LedgerAccountType.Revenue, AccountNormalBalance.Credit, true, "4000", FinancialStatementCategory.OtherRevenue);
         Ensure("5000", "المصروفات", LedgerAccountType.Expense, AccountNormalBalance.Debit, false);
         Ensure("5100", "تكلفة المبيعات والمشتريات", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.CostOfGoodsSold);
         Ensure("5200", "مصروف الرواتب", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.SalariesExpense);
         Ensure("5300", "مصروف الإهلاك", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.DepreciationExpense);
         Ensure("5400", "مصروف استهلاك المخزون", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.OtherOperatingExpense);
         Ensure("5410", "خسائر وتلف المخزون", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.OtherOperatingExpense);
+        Ensure("5420", "خسائر القيمة العادلة للأصول البيولوجية", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.OtherOperatingExpense);
+        Ensure("5430", "خسائر ائتمانية متوقعة", LedgerAccountType.Expense, AccountNormalBalance.Debit, true, "5000", FinancialStatementCategory.OtherOperatingExpense);
         _context.SaveChanges();
         return existing;
     }

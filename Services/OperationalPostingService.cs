@@ -5,6 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FishFarmManager.Services;
 
+public sealed record OperationalForeignCurrencyMeasurement(
+    string CurrencyCode,
+    decimal ForeignGrossAmount,
+    long ExchangeRateId);
+
 public sealed class OperationalPostingService
 {
     private sealed record ComponentPosting(PostingComponent Component, decimal Debit, decimal Credit, string Description);
@@ -17,12 +22,15 @@ public sealed class OperationalPostingService
         _ledger = new GeneralLedgerService(context);
     }
 
-    public JournalEntry CreateSalesCompletionDraft(int salesOrderId, int fiscalPeriodId, string actor, string reason)
+    public JournalEntry CreateSalesCompletionDraft(int salesOrderId, int fiscalPeriodId, string actor, string reason,
+        OperationalForeignCurrencyMeasurement? foreignCurrency = null)
     {
         var order = _context.SalesOrders.AsNoTracking().SingleOrDefault(item => item.Id == salesOrderId)
             ?? throw new InvalidOperationException("The sales order does not exist.");
         if (order.Status != SalesOrderStatus.Completed)
             throw new InvalidOperationException("Only completed sales orders can be transferred to accounting.");
+        if (!order.DeliveryDate.HasValue)
+            throw new InvalidOperationException("Revenue cannot be recognized before documented delivery and transfer of control.");
         var total = order.TotalAmount > 0 ? order.TotalAmount : order.GrandTotal;
         var vat = order.VATAmount > 0 ? order.VATAmount : order.TaxAmount;
         return CreateOperationalDraft(
@@ -40,10 +48,12 @@ public sealed class OperationalPostingService
             PostingComponent.AccountsReceivable,
             PostingComponent.SalesRevenue,
             PostingComponent.OutputVat,
-            debitPrimary: true);
+            debitPrimary: true,
+            foreignCurrency);
     }
 
-    public JournalEntry CreatePurchaseReceiptDraft(int purchaseReceivingId, int fiscalPeriodId, string actor, string reason)
+    public JournalEntry CreatePurchaseReceiptDraft(int purchaseReceivingId, int fiscalPeriodId, string actor, string reason,
+        OperationalForeignCurrencyMeasurement? foreignCurrency = null)
     {
         var receiving = _context.PurchaseReceivings.AsNoTracking().Include(item => item.PurchaseOrder)
             .SingleOrDefault(item => item.Id == purchaseReceivingId)
@@ -71,7 +81,8 @@ public sealed class OperationalPostingService
             PostingComponent.InventoryOrExpense,
             PostingComponent.AccountsPayable,
             PostingComponent.InputVat,
-            debitPrimary: false);
+            debitPrimary: false,
+            foreignCurrency);
     }
 
     public JournalEntry CreateCustomerPaymentDraft(int customerPaymentId, int fiscalPeriodId, string actor, string reason)
@@ -304,7 +315,8 @@ public sealed class OperationalPostingService
         PostingComponent primaryDebitOrCredit,
         PostingComponent oppositeDebitOrCredit,
         PostingComponent vatComponent,
-        bool debitPrimary)
+        bool debitPrimary,
+        OperationalForeignCurrencyMeasurement? foreignCurrency = null)
     {
         if (total <= 0 || vat < 0 || vat > total)
             throw new InvalidOperationException("Operational totals are invalid for accounting transfer.");
@@ -328,7 +340,8 @@ public sealed class OperationalPostingService
         }
 
         return CreateMappedDraft(eventType, sourceEntityType, sourceEntityId, entryDate, fiscalPeriodId,
-            description, reference, actor, reason, postings);
+            description, reference, actor, reason, postings, foreignCurrency,
+            debitPrimary ? primaryDebitOrCredit : oppositeDebitOrCredit, total);
     }
 
     private JournalEntry CreateMappedDraft(
@@ -341,7 +354,10 @@ public sealed class OperationalPostingService
         string reference,
         string actor,
         string reason,
-        IReadOnlyCollection<ComponentPosting> postings)
+        IReadOnlyCollection<ComponentPosting> postings,
+        OperationalForeignCurrencyMeasurement? foreignCurrency = null,
+        PostingComponent? foreignMonetaryComponent = null,
+        decimal? foreignMonetarySarAmount = null)
     {
         if (_context.OperationalPostingRecords.Any(item => item.EventType == eventType
             && item.SourceEntityType == sourceEntityType && item.SourceEntityId == sourceEntityId))
@@ -360,8 +376,16 @@ public sealed class OperationalPostingService
             if (!mappings.ContainsKey(component))
                 throw new InvalidOperationException($"The approved posting map is missing {component}.");
         }
-        var lines = postings.Select(item => new JournalLineRequest(
-            mappings[item.Component], item.Debit, item.Credit, Description: item.Description)).ToArray();
+        var foreignMeasurement = ValidateForeignCurrencyMeasurement(
+            foreignCurrency, entryDate, foreignMonetarySarAmount);
+        var lines = postings.Select(item => item.Component == foreignMonetaryComponent && foreignMeasurement != null
+            ? new JournalLineRequest(mappings[item.Component], item.Debit, item.Credit,
+                Description: item.Description,
+                ForeignCurrencyCode: foreignMeasurement.Value.CurrencyCode,
+                ForeignAmount: foreignMeasurement.Value.ForeignAmount,
+                ForeignExchangeRateId: foreignMeasurement.Value.ExchangeRateId)
+            : new JournalLineRequest(mappings[item.Component], item.Debit, item.Credit,
+                Description: item.Description)).ToArray();
 
         using var transaction = _context.Database.CurrentTransaction == null
             ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
@@ -380,6 +404,28 @@ public sealed class OperationalPostingService
         _context.SaveChanges();
         transaction?.Commit();
         return entry;
+    }
+
+    private (string CurrencyCode, decimal ForeignAmount, long ExchangeRateId)? ValidateForeignCurrencyMeasurement(
+        OperationalForeignCurrencyMeasurement? measurement, DateTime entryDate, decimal? sarAmount)
+    {
+        if (measurement == null) return null;
+        if (!sarAmount.HasValue || sarAmount <= 0m || measurement.ForeignGrossAmount <= 0m)
+            throw new InvalidOperationException("A positive foreign gross amount and SAR monetary amount are required.");
+        var currency = measurement.CurrencyCode.Trim().ToUpperInvariant();
+        if (currency.Length != 3 || currency == "SAR")
+            throw new InvalidOperationException("The operational foreign currency must be a three-letter code other than SAR.");
+        var rate = _context.ForeignExchangeRates.AsNoTracking().SingleOrDefault(value =>
+            value.Id == measurement.ExchangeRateId)
+            ?? throw new InvalidOperationException("The selected exchange rate does not exist.");
+        if (rate.Status != ExchangeRateStatus.Approved || rate.Purpose != ExchangeRatePurpose.Transaction
+            || rate.RateDate.Date != entryDate.Date || rate.CurrencyCode != currency)
+            throw new InvalidOperationException("The transaction requires an approved same-date rate for the same currency.");
+        var translated = decimal.Round(measurement.ForeignGrossAmount * rate.SarPerUnit, 2,
+            MidpointRounding.AwayFromZero);
+        if (translated != sarAmount.Value)
+            throw new InvalidOperationException("The foreign gross amount translated at the approved rate must equal the SAR receivable or payable.");
+        return (currency, measurement.ForeignGrossAmount, rate.Id);
     }
 
     private static void EnsurePositiveSarAmount(decimal amount)

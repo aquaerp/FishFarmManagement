@@ -1393,6 +1393,124 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void OperationalForeignSale_LinksCompletedDeliveryToGovernedReceivable()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var orderId = database.SeedCompletedSalesOrder(375m, 0m);
+        var rates = new ForeignExchangeRateService(database.Context);
+        var rate = rates.CreateDraft(new ForeignExchangeRateDraftRequest(
+            "USD", new DateTime(2026, 1, 15), ExchangeRatePurpose.Transaction, 3.75m,
+            "Saudi Central Bank", "Docs/Evidence/FX-2026-01-15-USD.pdf"),
+            "treasury-maker", "Daily official rate entered");
+        rates.Approve(rate.Id, "treasury-reviewer", "Official evidence checked");
+
+        var entry = new OperationalPostingService(database.Context).CreateSalesCompletionDraft(
+            orderId, database.PeriodId, "sales-accountant", "Delivered foreign sale",
+            new OperationalForeignCurrencyMeasurement("USD", 100m, rate.Id));
+        var ledger = new GeneralLedgerService(database.Context);
+        ledger.Approve(entry.Id, "journal-reviewer", "Delivery, invoice and rate checked");
+        ledger.Post(entry.Id, "journal-poster", "Approved sale posted");
+        var receivableLine = database.Context.JournalEntryLines.AsNoTracking()
+            .Include(value => value.LedgerAccount)
+            .Single(value => value.JournalEntryId == entry.Id && value.LedgerAccount.Code == "1120");
+        var item = new ForeignCurrencyMonetaryItemService(database.Context).Register(
+            new ForeignMonetaryItemRegistrationRequest(receivableLine.Id,
+                ForeignMonetaryItemKind.Asset, "AR-USD-OPERATIONAL-001"),
+            "receivables-accountant", "Operational receivable linked to delivered sale");
+
+        Assert.Equal(100m, item.OriginalForeignAmount);
+        Assert.Equal(375m, item.CarryingAmountSar);
+        Assert.Equal("USD", receivableLine.ForeignCurrencyCode);
+        Assert.Equal(rate.Id, receivableLine.ForeignExchangeRateId);
+    }
+
+    [Fact]
+    public void OperationalForeignPurchase_LinksApprovedReceiptToGovernedPayable()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var receivingId = database.SeedApprovedPurchaseReceiving(460m, 0m);
+        var rates = new ForeignExchangeRateService(database.Context);
+        var rate = rates.CreateDraft(new ForeignExchangeRateDraftRequest(
+            "EUR", new DateTime(2026, 1, 20), ExchangeRatePurpose.Transaction, 4.60m,
+            "Saudi Central Bank", "Docs/Evidence/FX-2026-01-20-EUR.pdf"),
+            "treasury-maker", "Daily official rate entered");
+        rates.Approve(rate.Id, "treasury-reviewer", "Official evidence checked");
+
+        var entry = new OperationalPostingService(database.Context).CreatePurchaseReceiptDraft(
+            receivingId, database.PeriodId, "purchase-accountant", "Approved foreign receipt",
+            new OperationalForeignCurrencyMeasurement("EUR", 100m, rate.Id));
+        var ledger = new GeneralLedgerService(database.Context);
+        ledger.Approve(entry.Id, "journal-reviewer", "Receipt, invoice and rate checked");
+        ledger.Post(entry.Id, "journal-poster", "Approved purchase posted");
+        var payableLine = database.Context.JournalEntryLines.AsNoTracking()
+            .Include(value => value.LedgerAccount)
+            .Single(value => value.JournalEntryId == entry.Id && value.LedgerAccount.Code == "2100");
+        var item = new ForeignCurrencyMonetaryItemService(database.Context).Register(
+            new ForeignMonetaryItemRegistrationRequest(payableLine.Id,
+                ForeignMonetaryItemKind.Liability, "AP-EUR-OPERATIONAL-001"),
+            "payables-accountant", "Operational payable linked to approved receipt");
+
+        Assert.Equal(100m, item.OriginalForeignAmount);
+        Assert.Equal(460m, item.CarryingAmountSar);
+        Assert.Equal("EUR", payableLine.ForeignCurrencyCode);
+    }
+
+    [Fact]
+    public void PolicyAdjustments_PostIas41FairValueAndIfrs9LifetimeEclFromEvidence()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var policy = new AccountingPolicyAdjustmentService(database.Context);
+        var biological = policy.CreateBiologicalAssetFairValueDraft(
+            new DateTime(2026, 1, 31), database.PeriodId, 80_000m, 92_500m,
+            "Docs/Evidence/IAS41-2026-01-FVLCTS.xlsx", "financial-accountant",
+            "Fish biomass, market price and costs-to-sell schedule prepared");
+        var ecl = policy.CreateExpectedCreditLossDraft(
+            new DateTime(2026, 1, 31), database.PeriodId, 100_000m, 0.025m, 1_000m,
+            "Docs/Evidence/IFRS9-2026-01-ECL.xlsx", "credit-accountant",
+            "Lifetime provision matrix and forward-looking overlays prepared");
+        var harvest = policy.CreateHarvestFairValueTransferDraft(
+            new DateTime(2026, 1, 31), database.PeriodId, 40_000m, 46_250m,
+            "Docs/Evidence/IAS41-2026-01-HARVEST.xlsx", "production-accountant",
+            "Harvest weight, market price and selling-cost schedule prepared");
+        var ledger = new GeneralLedgerService(database.Context);
+        foreach (var entry in new[] { biological.JournalEntry, ecl.JournalEntry, harvest.JournalEntry })
+        {
+            ledger.Approve(entry.Id, "chief-accountant", "Measurement evidence independently reviewed");
+            ledger.Post(entry.Id, "period-close-poster", "Approved closing estimate posted");
+        }
+
+        var biologicalLines = database.LinesWithAccountCodes(biological.JournalEntry.Id);
+        Assert.Contains(biologicalLines, value => value.Code == "1200" && value.Debit == 12_500m);
+        Assert.Contains(biologicalLines, value => value.Code == "4210" && value.Credit == 12_500m);
+        var eclLines = database.LinesWithAccountCodes(ecl.JournalEntry.Id);
+        Assert.Contains(eclLines, value => value.Code == "5430" && value.Debit == 1_500m);
+        Assert.Contains(eclLines, value => value.Code == "1125" && value.Credit == 1_500m);
+        var harvestLines = database.LinesWithAccountCodes(harvest.JournalEntry.Id);
+        Assert.Contains(harvestLines, value => value.Code == "1130" && value.Debit == 6_250m);
+        Assert.Contains(harvestLines, value => value.Code == "1200" && value.Credit == 6_250m);
+        Assert.All(database.Context.AccountingAdjustments.AsNoTracking(), value =>
+            Assert.False(string.IsNullOrWhiteSpace(value.SupportingDocumentReference)));
+    }
+
+    [Fact]
+    public void RevenueRecognition_RejectsCompletedOrderWithoutTransferOfControlEvidence()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var orderId = database.SeedCompletedSalesOrder(100m, 0m);
+        database.Context.SalesOrders.Single(value => value.Id == orderId).DeliveryDate = null;
+        database.Context.SaveChanges();
+
+        Assert.Throws<InvalidOperationException>(() => new OperationalPostingService(database.Context)
+            .CreateSalesCompletionDraft(orderId, database.PeriodId, "sales-accountant",
+                "No delivery evidence"));
+        Assert.Empty(database.Context.OperationalPostingRecords);
+    }
+
+    [Fact]
     public void ForeignMonetaryItem_PartialSettlementPreservesBalanceAndSettlementIsImmutable()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1871,6 +1989,7 @@ public sealed class Phase2GeneralLedgerTests
             {
                 OrderNumber = $"SO-{Guid.NewGuid():N}",
                 OrderDate = new DateTime(2026, 1, 15),
+                DeliveryDate = new DateTime(2026, 1, 15),
                 Customer = customer,
                 Status = SalesOrderStatus.Completed,
                 SubTotal = total - vat,
