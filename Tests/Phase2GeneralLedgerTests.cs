@@ -745,6 +745,82 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void ProductionCosting_AbsorbsNormalMortalityTransfersWipAndCapitalizesHarvest()
+    {
+        using var database = LedgerTestDatabase.Create();
+        var receivingId = database.SeedPurchaseReceivingForInventory(20m);
+        new PurchaseReceivingInventoryService(database.Context).ApproveAndAddToInventory(
+            receivingId, "receiving-reviewer", "Received batch approved");
+        var receivedItem = database.Context.PurchaseReceivingItems.Include(value => value.InventoryItem)
+            .OrderBy(value => value.Id).First(value => value.PurchaseReceivingId == receivingId);
+        var cycle = new ProductionCycle
+        {
+            Name = "Cost cycle", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 1, 31),
+            Status = CycleStatus.Completed, CycleType = CycleType.GrowOut, InitialFishCount = 100,
+            TotalHarvestWeight = 5m, CreatedAt = DateTime.UtcNow
+        };
+        var sourcePond = new Pond { Name = "Cost pond A", Capacity = 100m, Area = 50m, Depth = 2m,
+            Status = PondStatus.Active, PondType = PondType.GrowOut, CreatedAt = DateTime.UtcNow };
+        var destinationPond = new Pond { Name = "Cost pond B", Capacity = 100m, Area = 50m, Depth = 2m,
+            Status = PondStatus.Active, PondType = PondType.GrowOut, CreatedAt = DateTime.UtcNow };
+        database.Context.AddRange(
+            new ProductionCyclePond { ProductionCycle = cycle, Pond = sourcePond, StartDate = cycle.StartDate,
+                EndDate = cycle.EndDate, Status = "Completed", CreatedAt = DateTime.UtcNow },
+            new ProductionCyclePond { ProductionCycle = cycle, Pond = destinationPond, StartDate = cycle.StartDate,
+                EndDate = cycle.EndDate, Status = "Completed", CreatedAt = DateTime.UtcNow });
+        database.Context.SaveChanges();
+        var inventory = new InventoryTransactionService(database.Context);
+        var issue = inventory.CreateDraft(new InventoryMovementDraftRequest(receivedItem.InventoryItemId,
+            StockMovementType.Consumption, 2m, null, new DateTime(2026, 1, 10), "COST-FEED-001"),
+            "issue-maker", "Issue feed");
+        inventory.Approve(issue.Id, "issue-reviewer", "Approve feed issue");
+        var trace = new OperationalTraceabilityService(database.Context);
+        var inputLot = trace.RegisterReceivedInputLot(receivedItem.Id, "trace-user", "Register received input");
+        trace.AllocateInputConsumption(inputLot.Id, issue.Id, cycle.Id, sourcePond.Id, 2m,
+            new DateTime(2026, 1, 10), "COST-ALLOC-001", "trace-user", "Trace feed issue");
+        var normalMortality = new MortalityRecord { CycleId = cycle.Id, Date = new DateTime(2026, 1, 11),
+            DeadFishCount = 1, AverageWeight = 0.5, Status = MortalityStatus.Analyzed,
+            Cause = MortalityCause.Unknown, RecordedBy = "production", CreatedAt = DateTime.UtcNow };
+        var abnormalMortality = new MortalityRecord { CycleId = cycle.Id, Date = new DateTime(2026, 1, 12),
+            DeadFishCount = 2, AverageWeight = 0.5, Status = MortalityStatus.Closed,
+            Cause = MortalityCause.Disease, RecordedBy = "production", CreatedAt = DateTime.UtcNow };
+        var output = new InventoryItem { Name = "Costed fresh fish", Category = InventoryCategory.FreshFish,
+            Unit = "kg", CurrentStock = 0m, MinimumStock = 0m, MaximumStock = 100m,
+            UnitCost = 0m, Status = InventoryStatus.Active, IsActive = true, CreatedAt = DateTime.UtcNow };
+        database.Context.AddRange(normalMortality, abnormalMortality, output);
+        database.Context.SaveChanges();
+
+        var costing = new ProductionCostingService(database.Context);
+        costing.CapitalizeInputConsumption(issue.Id, sourcePond.Id, "cost-accountant", "Load feed cost");
+        costing.CostMortality(normalMortality.Id, sourcePond.Id, 10m, false, "MORT-NORMAL-001",
+            "cost-accountant", "Normal mortality absorbed");
+        Assert.Equal(20m, costing.GetPondBalance(cycle.Id, sourcePond.Id).WorkInProgressBalance);
+        var abnormal = costing.CostMortality(abnormalMortality.Id, sourcePond.Id, 10m, true, "MORT-ABNORMAL-001",
+            "cost-accountant", "Abnormal mortality separated");
+        Assert.Equal(2m, abnormal.Amount);
+        var transfer = costing.TransferPondCost(cycle.Id, sourcePond.Id, destinationPond.Id, 5m, 9m,
+            new DateTime(2026, 1, 20), "POND-TRANSFER-001", "cost-accountant", "Move biomass and cost");
+        Assert.Equal(10m, transfer.Amount);
+        Assert.Equal(8m, costing.GetPondBalance(cycle.Id, sourcePond.Id).WorkInProgressBalance);
+        Assert.Equal(10m, costing.GetPondBalance(cycle.Id, destinationPond.Id).WorkInProgressBalance);
+        var harvestLot = trace.RegisterHarvestLot("COST-HARVEST-001", cycle.Id, destinationPond.Id, 5m,
+            new DateTime(2026, 1, 29), "HARVEST-COST-SHEET", "trace-user", "Register harvest for costing");
+        var harvest = costing.CapitalizeHarvest(harvestLot.Id, output.Id, 5m, true,
+            "cost-accountant", "Capitalize final harvest");
+
+        Assert.Equal(10m, harvest.CostEvent.Amount);
+        Assert.Equal(2m, harvest.CostPerKg);
+        Assert.Equal(0m, harvest.RemainingWorkInProgress);
+        var costedOutput = database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == output.Id);
+        Assert.Equal(5m, costedOutput.CurrentStock);
+        Assert.Equal(2m, costedOutput.UnitCost);
+        database.Context.ChangeTracker.Clear();
+        var protectedEvent = database.Context.ProductionCostEvents.First();
+        protectedEvent.Amount += 1m;
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1535,6 +1611,11 @@ public sealed class Phase2GeneralLedgerTests
             Assert.Contains("تسجيل دفعة المدخل", traceabilityButtons);
             Assert.Contains("تتبع أمامي حتى البيع", traceabilityButtons);
             Assert.Contains("تتبع خلفي حتى المدخلات", traceabilityButtons);
+            using var costingForm = new ProductionCostingForm(database.Context, new ProductionCostingService(database.Context));
+            var costingButtons = Descendants(costingForm).OfType<Button>().Select(value => value.Text).ToArray();
+            Assert.Contains("احتساب تكلفة النفوق", costingButtons);
+            Assert.Contains("نقل تكلفة الإنتاج بين الأحواض", costingButtons);
+            Assert.Contains("رسملة منتج الحصاد بالمخزون", costingButtons);
         }
         finally
         {

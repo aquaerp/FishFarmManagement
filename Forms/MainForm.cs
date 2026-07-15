@@ -181,6 +181,7 @@ namespace FishFarmManager.Forms
             var costMenu = new ToolStripMenuItem("التكاليف والموردين");
             costMenu.DropDownItems.Add("إدارة الموردين", null, ManageSuppliers_Click);
             costMenu.DropDownItems.Add("تسجيل التكاليف", null, RecordCosts_Click);
+            costMenu.DropDownItems.Add("تكلفة الإنتاج والنفوق والحصاد", null, ProductionCosting_Click);
             costMenu.DropDownItems.Add("دفع المستحقات", null, SupplierPayments_Click);
             costMenu.DropDownItems.Add(new ToolStripSeparator());
             costMenu.DropDownItems.Add("تقارير تحليل التكاليف", null, CostAnalysisReport_Click);
@@ -1049,6 +1050,17 @@ namespace FishFarmManager.Forms
         {
             var form = _serviceProvider.GetRequiredService<OperationalTraceabilityForm>();
             ShowChildForm(form);
+        }
+
+        private void ProductionCosting_Click(object? sender, EventArgs e)
+        {
+            if (!AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager, UserRole.Accountant, UserRole.ProductionStaff))
+            {
+                MessageBox.Show("هذه الشاشة متاحة للإنتاج والمحاسبة والإدارة فقط.", "صلاحيات غير كافية",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            ShowChildForm(_serviceProvider.GetRequiredService<ProductionCostingForm>());
         }
 
         private void AccountingManagement_Click(object? sender, EventArgs e)

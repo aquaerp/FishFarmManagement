@@ -2297,6 +2297,93 @@ namespace FishFarmManager.Migrations
                     b.ToTable("Ponds");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.ProductionCostEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("CostRecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DestinationPondId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("EventDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EventType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("HarvestLotId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MeasurementBasis")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MortalityRecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PondId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProductionCycleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("QuantityKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceEntityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceEntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("StockMovementId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CostRecordId");
+                    b.HasIndex("DestinationPondId");
+                    b.HasIndex("HarvestLotId");
+                    b.HasIndex("MortalityRecordId");
+                    b.HasIndex("PondId");
+                    b.HasIndex("ProductionCycleId");
+                    b.HasIndex("StockMovementId");
+                    b.HasIndex("EventType", "SourceEntityType", "SourceEntityId").IsUnique();
+
+                    b.ToTable("ProductionCostEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductionCostEvent_NonNegative", "CAST(QuantityKg AS NUMERIC) >= 0 AND CAST(Amount AS NUMERIC) >= 0");
+                            t.HasCheckConstraint("CK_ProductionCostEvent_TransferShape", "(EventType = 4 AND DestinationPondId IS NOT NULL AND DestinationPondId <> PondId AND CAST(QuantityKg AS NUMERIC) > 0 AND CAST(Amount AS NUMERIC) > 0) OR (EventType <> 4 AND DestinationPondId IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.ProductionCycle", b =>
                 {
                     b.Property<int>("Id")
@@ -2377,6 +2464,54 @@ namespace FishFarmManager.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ProductionCycles");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ProductionCostEvent", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.CostRecord", "CostRecord")
+                        .WithMany()
+                        .HasForeignKey("CostRecordId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FishFarmManager.Models.Pond", "DestinationPond")
+                        .WithMany()
+                        .HasForeignKey("DestinationPondId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FishFarmManager.Models.TraceabilityLot", "HarvestLot")
+                        .WithMany()
+                        .HasForeignKey("HarvestLotId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FishFarmManager.Models.MortalityRecord", "MortalityRecord")
+                        .WithMany()
+                        .HasForeignKey("MortalityRecordId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FishFarmManager.Models.Pond", "Pond")
+                        .WithMany()
+                        .HasForeignKey("PondId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FishFarmManager.Models.ProductionCycle", "ProductionCycle")
+                        .WithMany()
+                        .HasForeignKey("ProductionCycleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FishFarmManager.Models.StockMovement", "StockMovement")
+                        .WithMany()
+                        .HasForeignKey("StockMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CostRecord");
+                    b.Navigation("DestinationPond");
+                    b.Navigation("HarvestLot");
+                    b.Navigation("MortalityRecord");
+                    b.Navigation("Pond");
+                    b.Navigation("ProductionCycle");
+                    b.Navigation("StockMovement");
                 });
 
             modelBuilder.Entity("FishFarmManager.Models.ProductionCyclePond", b =>

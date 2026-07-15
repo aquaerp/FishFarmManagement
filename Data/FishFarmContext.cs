@@ -56,6 +56,7 @@ namespace FishFarmManager.Data
         public DbSet<InventoryCountLine> InventoryCountLines { get; set; }
         public DbSet<TraceabilityLot> TraceabilityLots { get; set; }
         public DbSet<TraceabilityAllocation> TraceabilityAllocations { get; set; }
+        public DbSet<ProductionCostEvent> ProductionCostEvents { get; set; }
 
         // Supplier System
         public DbSet<Supplier> Suppliers { get; set; }
@@ -398,6 +399,33 @@ namespace FishFarmManager.Data
                     table.HasCheckConstraint("CK_TraceabilityAllocation_TypeShape",
                         "(AllocationType = 0 AND ProductionCycleId IS NOT NULL AND PondId IS NOT NULL AND StockMovementId IS NOT NULL AND SalesOrderItemId IS NULL) OR " +
                         "(AllocationType = 1 AND ProductionCycleId IS NULL AND PondId IS NULL AND StockMovementId IS NULL AND SalesOrderItemId IS NOT NULL)");
+                });
+            });
+
+            modelBuilder.Entity<ProductionCostEvent>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.QuantityKg).HasPrecision(18, 3);
+                entity.Property(e => e.Amount).HasPrecision(18, 2);
+                entity.Property(e => e.Reference).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.SourceEntityType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.SourceEntityId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.MeasurementBasis).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(e => new { e.EventType, e.SourceEntityType, e.SourceEntityId }).IsUnique();
+                entity.HasOne(e => e.ProductionCycle).WithMany().HasForeignKey(e => e.ProductionCycleId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Pond).WithMany().HasForeignKey(e => e.PondId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.DestinationPond).WithMany().HasForeignKey(e => e.DestinationPondId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.StockMovement).WithMany().HasForeignKey(e => e.StockMovementId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.MortalityRecord).WithMany().HasForeignKey(e => e.MortalityRecordId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.CostRecord).WithMany().HasForeignKey(e => e.CostRecordId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.HarvestLot).WithMany().HasForeignKey(e => e.HarvestLotId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_ProductionCostEvent_NonNegative", "CAST(QuantityKg AS NUMERIC) >= 0 AND CAST(Amount AS NUMERIC) >= 0");
+                    table.HasCheckConstraint("CK_ProductionCostEvent_TransferShape",
+                        "(EventType = 4 AND DestinationPondId IS NOT NULL AND DestinationPondId <> PondId AND CAST(QuantityKg AS NUMERIC) > 0 AND CAST(Amount AS NUMERIC) > 0) OR " +
+                        "(EventType <> 4 AND DestinationPondId IS NULL)");
                 });
             });
         }
