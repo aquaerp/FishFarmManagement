@@ -52,6 +52,8 @@ namespace FishFarmManager.Data
         public DbSet<InventoryItem> InventoryItems { get; set; }
         public DbSet<StockMovement> StockMovements { get; set; }
         public DbSet<InventoryValuation> InventoryValuations { get; set; }
+        public DbSet<InventoryCount> InventoryCounts { get; set; }
+        public DbSet<InventoryCountLine> InventoryCountLines { get; set; }
 
         // Supplier System
         public DbSet<Supplier> Suppliers { get; set; }
@@ -312,6 +314,45 @@ namespace FishFarmManager.Data
                 entity.HasOne(e => e.InventoryItem)
                     .WithMany()
                     .HasForeignKey(e => e.InventoryItemId);
+            });
+
+            modelBuilder.Entity<InventoryCount>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CountNumber).IsRequired().HasMaxLength(40);
+                entity.HasIndex(e => e.CountNumber).IsUnique();
+                entity.Property(e => e.Reference).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Notes).HasMaxLength(1000);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ApprovedBy).HasMaxLength(100);
+                entity.Property(e => e.ApprovalReason).HasMaxLength(500);
+                entity.Property(e => e.RejectedBy).HasMaxLength(100);
+                entity.Property(e => e.RejectionReason).HasMaxLength(500);
+            });
+
+            modelBuilder.Entity<InventoryCountLine>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.InventoryCountId, e.InventoryItemId }).IsUnique();
+                entity.Property(e => e.BookQuantitySnapshot).HasPrecision(18, 3);
+                entity.Property(e => e.UnitCostSnapshot).HasPrecision(18, 2);
+                entity.Property(e => e.ActualQuantity).HasPrecision(18, 3);
+                entity.Property(e => e.VarianceQuantity).HasPrecision(18, 3);
+                entity.Property(e => e.VarianceValue).HasPrecision(18, 2);
+                entity.Property(e => e.VarianceReason).HasMaxLength(500);
+                entity.HasOne(e => e.InventoryCount).WithMany(e => e.Lines)
+                    .HasForeignKey(e => e.InventoryCountId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.InventoryItem).WithMany()
+                    .HasForeignKey(e => e.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.StockMovement).WithMany()
+                    .HasForeignKey(e => e.StockMovementId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.JournalEntry).WithMany()
+                    .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_InventoryCountLine_BookQuantity", "CAST(BookQuantitySnapshot AS NUMERIC) >= 0");
+                    table.HasCheckConstraint("CK_InventoryCountLine_ActualQuantity", "ActualQuantity IS NULL OR CAST(ActualQuantity AS NUMERIC) >= 0");
+                });
             });
         }
 

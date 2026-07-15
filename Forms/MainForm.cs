@@ -611,7 +611,7 @@ namespace FishFarmManager.Forms
 
         private void ManageStockAdjustments_Click(object? sender, EventArgs e)
         {
-            var form = _serviceProvider.GetRequiredService<StockAdjustmentForm>();
+            var form = _serviceProvider.GetRequiredService<InventoryCountForm>();
             ShowChildForm(form);
         }
 

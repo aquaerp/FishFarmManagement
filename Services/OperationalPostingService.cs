@@ -310,7 +310,9 @@ public sealed class OperationalPostingService
         var lines = postings.Select(item => new JournalLineRequest(
             mappings[item.Component], item.Debit, item.Credit, Description: item.Description)).ToArray();
 
-        using var transaction = _context.Database.BeginTransaction(IsolationLevel.Serializable);
+        using var transaction = _context.Database.CurrentTransaction == null
+            ? _context.Database.BeginTransaction(IsolationLevel.Serializable)
+            : null;
         var entry = _ledger.CreateDraft(new JournalDraftRequest(
             entryDate.Date, fiscalPeriodId, description, eventType.ToString(), reference, lines), actor, reason);
         _context.OperationalPostingRecords.Add(new OperationalPostingRecord
@@ -323,7 +325,7 @@ public sealed class OperationalPostingService
             CreatedBy = actor.Trim()
         });
         _context.SaveChanges();
-        transaction.Commit();
+        transaction?.Commit();
         return entry;
     }
 

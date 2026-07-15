@@ -1730,6 +1730,54 @@ namespace FishFarmManager.Migrations
                     b.ToTable("HealthInspections");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.InventoryCount", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<DateTime?>("ApprovedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("ApprovedBy").HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("ApprovalReason").HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<DateTime>("CountDate").HasColumnType("TEXT");
+                    b.Property<string>("CountNumber").IsRequired().HasMaxLength(40).HasColumnType("TEXT");
+                    b.Property<int>("CountType").HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("Notes").HasMaxLength(1000).HasColumnType("TEXT");
+                    b.Property<DateTime?>("RejectedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("RejectedBy").HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<string>("RejectionReason").HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<string>("Reference").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<int>("Status").HasColumnType("INTEGER");
+                    b.Property<DateTime?>("SubmittedAtUtc").HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("CountNumber").IsUnique();
+                    b.ToTable("InventoryCounts");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.InventoryCountLine", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<decimal?>("ActualQuantity").HasPrecision(18, 3).HasColumnType("TEXT");
+                    b.Property<decimal>("BookQuantitySnapshot").HasPrecision(18, 3).HasColumnType("TEXT");
+                    b.Property<long>("InventoryCountId").HasColumnType("INTEGER");
+                    b.Property<int>("InventoryItemId").HasColumnType("INTEGER");
+                    b.Property<long?>("JournalEntryId").HasColumnType("INTEGER");
+                    b.Property<int?>("StockMovementId").HasColumnType("INTEGER");
+                    b.Property<decimal>("UnitCostSnapshot").HasPrecision(18, 2).HasColumnType("TEXT");
+                    b.Property<decimal>("VarianceQuantity").HasPrecision(18, 3).HasColumnType("TEXT");
+                    b.Property<string>("VarianceReason").HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<decimal>("VarianceValue").HasPrecision(18, 2).HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("InventoryCountId", "InventoryItemId").IsUnique();
+                    b.HasIndex("InventoryItemId");
+                    b.HasIndex("JournalEntryId").IsUnique();
+                    b.HasIndex("StockMovementId").IsUnique();
+                    b.ToTable("InventoryCountLines", t =>
+                    {
+                        t.HasCheckConstraint("CK_InventoryCountLine_ActualQuantity", "ActualQuantity IS NULL OR CAST(ActualQuantity AS NUMERIC) >= 0");
+                        t.HasCheckConstraint("CK_InventoryCountLine_BookQuantity", "CAST(BookQuantitySnapshot AS NUMERIC) >= 0");
+                    });
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.InventoryItem", b =>
                 {
                     b.Property<int>("Id")
@@ -4434,6 +4482,24 @@ namespace FishFarmManager.Migrations
                     b.Navigation("ProductionCycle");
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.InventoryCountLine", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.InventoryCount", "InventoryCount")
+                        .WithMany("Lines").HasForeignKey("InventoryCountId")
+                        .OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("FishFarmManager.Models.InventoryItem", "InventoryItem")
+                        .WithMany().HasForeignKey("InventoryItemId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("FishFarmManager.Models.JournalEntry", "JournalEntry")
+                        .WithMany().HasForeignKey("JournalEntryId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FishFarmManager.Models.StockMovement", "StockMovement")
+                        .WithMany().HasForeignKey("StockMovementId").OnDelete(DeleteBehavior.Restrict);
+                    b.Navigation("InventoryCount");
+                    b.Navigation("InventoryItem");
+                    b.Navigation("JournalEntry");
+                    b.Navigation("StockMovement");
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.InventoryItem", b =>
                 {
                     b.HasOne("FishFarmManager.Models.Supplier", "Supplier")
@@ -4901,6 +4967,11 @@ namespace FishFarmManager.Migrations
                     b.Navigation("InventoryValuations");
 
                     b.Navigation("StockMovements");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.InventoryCount", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("FishFarmManager.Models.Pond", b =>

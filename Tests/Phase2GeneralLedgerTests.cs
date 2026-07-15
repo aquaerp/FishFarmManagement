@@ -548,6 +548,108 @@ public sealed class Phase2GeneralLedgerTests
     }
 
     [Fact]
+    public void FullInventoryCount_RequiresIndependentApprovalAndPostsEveryVarianceAtomically()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var first = NewInventoryItem("Count surplus", 10m, 5m);
+        var second = NewInventoryItem("Count shortage", 20m, 4m);
+        database.Context.AddRange(first, second);
+        database.Context.SaveChanges();
+        var service = new InventoryCountService(database.Context);
+        var count = service.CreateDraft(new InventoryCountDraftRequest(
+            InventoryCountType.Full, new DateTime(2026, 1, 20), "COUNT-FULL-001"),
+            "count-maker", "Start full physical count");
+
+        service.RecordActualQuantity(count.Id, first.Id, 12m, "Unrecorded receipt", "count-maker", "First bin counted");
+        service.RecordActualQuantity(count.Id, second.Id, 18m, "Handling loss", "count-maker", "Second bin counted");
+        service.Submit(count.Id, "count-maker", "Count sheets completed");
+        Assert.Throws<InvalidOperationException>(() => service.Approve(
+            count.Id, database.PeriodId, "count-maker", "Self approval must fail"));
+
+        var result = service.Approve(count.Id, database.PeriodId, "count-reviewer", "Count evidence independently reviewed");
+
+        Assert.Equal(InventoryCountStatus.Approved, result.Count.Status);
+        Assert.Equal(2, result.Movements.Count);
+        Assert.Equal(2, result.JournalEntries.Count);
+        Assert.All(result.JournalEntries, entry => Assert.Equal(JournalEntryStatus.Posted, entry.Status));
+        Assert.Equal(12m, database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == first.Id).CurrentStock);
+        Assert.Equal(18m, database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == second.Id).CurrentStock);
+        Assert.Contains(result.Movements, movement => movement.MovementType == StockMovementType.AdjustmentIncrease && movement.TotalCost == 10m);
+        Assert.Contains(result.Movements, movement => movement.MovementType == StockMovementType.AdjustmentDecrease && movement.TotalCost == 8m);
+        Assert.All(database.Context.InventoryCountLines.Where(value => value.InventoryCountId == count.Id),
+            line => { Assert.NotNull(line.StockMovementId); Assert.NotNull(line.JournalEntryId); });
+        Assert.Contains(database.Context.AccountingAuditEvents,
+            value => value.EntityType == nameof(InventoryCount) && value.EntityId == count.Id.ToString()
+                && value.Action == "ApproveApplyAndPost");
+        database.Context.ChangeTracker.Clear();
+        var protectedLine = database.Context.InventoryCountLines.First(value => value.InventoryCountId == count.Id);
+        protectedLine.ActualQuantity += 1m;
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
+    }
+
+    [Fact]
+    public void InventoryCountApproval_RollsBackWhenBookBalanceChangedAfterSnapshot()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var item = NewInventoryItem("Stale count", 10m, 5m);
+        database.Context.Add(item);
+        database.Context.SaveChanges();
+        var service = new InventoryCountService(database.Context);
+        var count = service.CreateDraft(new InventoryCountDraftRequest(
+            InventoryCountType.Periodic, new DateTime(2026, 1, 20), "COUNT-STALE-001", [item.Id]),
+            "count-maker", "Start periodic count");
+        service.RecordActualQuantity(count.Id, item.Id, 8m, "Count shortage", "count-maker", "Bin counted");
+        service.Submit(count.Id, "count-maker", "Submit count");
+        item.CurrentStock = 11m;
+        database.Context.SaveChanges();
+
+        Assert.Throws<InvalidOperationException>(() => service.Approve(
+            count.Id, database.PeriodId, "count-reviewer", "Review stale count"));
+
+        Assert.Equal(InventoryCountStatus.Submitted,
+            database.Context.InventoryCounts.AsNoTracking().Single(value => value.Id == count.Id).Status);
+        Assert.Empty(database.Context.StockMovements);
+        Assert.Empty(database.Context.OperationalPostingRecords);
+    }
+
+    [Fact]
+    public void InventoryCountApproval_RollsBackEarlierVarianceWhenLaterVarianceCannotBeValued()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var shortage = NewInventoryItem("Rollback shortage", 10m, 5m);
+        var unvaluedSurplus = NewInventoryItem("Rollback unvalued surplus", 10m, 0m);
+        database.Context.AddRange(shortage, unvaluedSurplus);
+        database.Context.SaveChanges();
+        var service = new InventoryCountService(database.Context);
+        var count = service.CreateDraft(new InventoryCountDraftRequest(
+            InventoryCountType.Full, new DateTime(2026, 1, 20), "COUNT-ROLLBACK-001"),
+            "count-maker", "Start rollback test count");
+        service.RecordActualQuantity(count.Id, shortage.Id, 9m, "Handling loss", "count-maker", "First bin counted");
+        service.RecordActualQuantity(count.Id, unvaluedSurplus.Id, 11m, "Unrecorded receipt", "count-maker", "Second bin counted");
+        service.Submit(count.Id, "count-maker", "Submit rollback test count");
+
+        Assert.Throws<InvalidOperationException>(() => service.Approve(
+            count.Id, database.PeriodId, "count-reviewer", "Review count with missing valuation"));
+
+        Assert.Equal(10m, database.Context.InventoryItems.AsNoTracking().Single(value => value.Id == shortage.Id).CurrentStock);
+        Assert.Equal(InventoryCountStatus.Submitted,
+            database.Context.InventoryCounts.AsNoTracking().Single(value => value.Id == count.Id).Status);
+        Assert.Empty(database.Context.StockMovements.AsNoTracking());
+        Assert.Empty(database.Context.JournalEntries.AsNoTracking());
+        Assert.Empty(database.Context.OperationalPostingRecords.AsNoTracking());
+    }
+
+    private static InventoryItem NewInventoryItem(string name, decimal stock, decimal cost) => new()
+    {
+        Name = name, Category = InventoryCategory.Feed, Unit = "kg",
+        CurrentStock = stock, MinimumStock = 0m, MaximumStock = 1_000m,
+        UnitCost = cost, Status = InventoryStatus.Active, IsActive = true, CreatedAt = DateTime.UtcNow
+    };
+
+    [Fact]
     public void OpeningBalances_AreLimitedToOneBalancedBalanceSheetJournalPerYear()
     {
         using var database = LedgerTestDatabase.Create();
@@ -1328,6 +1430,11 @@ public sealed class Phase2GeneralLedgerTests
             var movementButtons = Descendants(movementForm).OfType<Button>().Select(value => value.Text).ToArray();
             Assert.Contains("حفظ مسودة", movementButtons);
             Assert.Contains("اعتماد وتطبيق", movementButtons);
+            using var countForm = new InventoryCountForm(database.Context);
+            var countButtons = Descendants(countForm).OfType<Button>().Select(value => value.Text).ToArray();
+            Assert.Contains("إنشاء مسودة جرد", countButtons);
+            Assert.Contains("إرسال للاعتماد", countButtons);
+            Assert.Contains("اعتماد وتطبيق وقيد", countButtons);
         }
         finally
         {

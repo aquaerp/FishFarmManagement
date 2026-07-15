@@ -183,7 +183,7 @@ namespace FishFarmManager
             
             // Week 4: Inventory Management - Fixed Forms
             services.AddTransient<InventoryItemForm>();
-            services.AddTransient<StockAdjustmentForm>();
+            services.AddTransient<InventoryCountForm>();
             services.AddTransient<StockMovementForm>();
             
             // Authentication
