@@ -1138,4 +1138,31 @@ namespace FishFarmManager.Models
         Microbiological = 4
     }
 
+    public enum FoodSafetyControlMeasureType
+    {
+        [Display(Name = "برنامج متطلبات أساسية PRP")]
+        Prp = 1,
+
+        [Display(Name = "برنامج متطلبات تشغيلية OPRP")]
+        Oprp = 2,
+
+        [Display(Name = "نقطة تحكم حرجة CCP")]
+        Ccp = 3
+    }
+
+    public enum HaccpRecordLifecycleStatus
+    {
+        [Display(Name = "مفتوح")]
+        Open = 1,
+
+        [Display(Name = "إجراء تصحيحي جارٍ")]
+        CorrectiveActionInProgress = 2,
+
+        [Display(Name = "بانتظار التحقق")]
+        AwaitingVerification = 3,
+
+        [Display(Name = "مغلق")]
+        Closed = 4
+    }
+
 }

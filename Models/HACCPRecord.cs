@@ -30,6 +30,9 @@ namespace FishFarmManager.Models
         [StringLength(200)]
         [Display(Name = "نقطة التحكم")]
         public string ControlPoint { get; set; } = string.Empty;
+
+        [Required]
+        public FoodSafetyControlMeasureType ControlMeasureType { get; set; } = FoodSafetyControlMeasureType.Prp;
         
         [StringLength(500)]
         [Display(Name = "وصف نقطة التحكم")]
@@ -105,6 +108,14 @@ namespace FishFarmManager.Models
         [StringLength(1000)]
         [Display(Name = "الإجراءات التصحيحية")]
         public string? CorrectiveActions { get; set; }
+
+        [StringLength(1000)]
+        public string? RootCause { get; set; }
+
+        [StringLength(100)]
+        public string? CorrectiveActionOwner { get; set; }
+
+        public DateTime? CorrectiveActionDueDate { get; set; }
         
         [Display(Name = "تاريخ اتخاذ الإجراء")]
         public DateTime? ActionTakenDate { get; set; }
@@ -122,6 +133,16 @@ namespace FishFarmManager.Models
         
         [Display(Name = "تاريخ التحقق")]
         public DateTime? VerificationDate { get; set; }
+
+        public bool EffectivenessVerified { get; set; }
+
+        [StringLength(100)]
+        public string? EffectivenessVerifiedBy { get; set; }
+
+        public DateTime? EffectivenessVerificationDate { get; set; }
+
+        [Required]
+        public HaccpRecordLifecycleStatus LifecycleStatus { get; set; } = HaccpRecordLifecycleStatus.Open;
         
         [StringLength(200)]
         [Display(Name = "المرجع")]

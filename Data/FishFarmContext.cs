@@ -353,6 +353,29 @@ namespace FishFarmManager.Data
                     .WithMany()
                     .HasForeignKey(e => e.PondId);
             });
+
+            modelBuilder.Entity<HACCPRecord>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.RecordNumber);
+                entity.Property(e => e.RecordNumber).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.RootCause).HasMaxLength(1000);
+                entity.Property(e => e.CorrectiveActionOwner).HasMaxLength(100);
+                entity.Property(e => e.EffectivenessVerifiedBy).HasMaxLength(100);
+                entity.HasOne(e => e.Pond).WithMany().HasForeignKey(e => e.PondId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_HACCPRecord_Limits",
+                        "CAST(MinimumLimit AS NUMERIC) <= CAST(TargetValue AS NUMERIC) AND CAST(TargetValue AS NUMERIC) <= CAST(MaximumLimit AS NUMERIC)");
+                    table.HasCheckConstraint("CK_HACCPRecord_DerivedDeviation",
+                        "(CAST(ActualValue AS NUMERIC) >= CAST(MinimumLimit AS NUMERIC) AND CAST(ActualValue AS NUMERIC) <= CAST(MaximumLimit AS NUMERIC) AND IsWithinLimits = 1 AND DeviationOccurred = 0) OR (NOT (CAST(ActualValue AS NUMERIC) >= CAST(MinimumLimit AS NUMERIC) AND CAST(ActualValue AS NUMERIC) <= CAST(MaximumLimit AS NUMERIC)) AND IsWithinLimits = 0 AND DeviationOccurred = 1 AND length(trim(DeviationDescription)) > 0)");
+                    table.HasCheckConstraint("CK_HACCPRecord_ControlReference",
+                        "ControlMeasureType = 1 OR (ControlMeasureType IN (2, 3) AND ReferenceDocument IS NOT NULL AND length(trim(ReferenceDocument)) > 0)");
+                    table.HasCheckConstraint("CK_HACCPRecord_ClosedVerification",
+                        "LifecycleStatus <> 4 OR (Verified = 1 AND EffectivenessVerified = 1 AND VerificationDate IS NOT NULL AND EffectivenessVerificationDate IS NOT NULL)");
+                });
+            });
         }
 
         private void ConfigureMaintenanceSystem(ModelBuilder modelBuilder)
