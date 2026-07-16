@@ -44,6 +44,7 @@ namespace FishFarmManager.Data
         public DbSet<QualityRiskRegister> QualityRiskRegisters { get; set; }
         public DbSet<QualityObjective> QualityObjectives { get; set; }
         public DbSet<ControlledDocument> ControlledDocuments { get; set; }
+        public DbSet<CorrectiveAction> CorrectiveActions { get; set; }
 
         // Maintenance System
         public DbSet<Equipment> Equipment { get; set; }
@@ -407,6 +408,20 @@ namespace FishFarmManager.Data
                 entity.HasIndex(value => value.ObjectiveCode).IsUnique();
                 entity.ToTable(table => table.HasCheckConstraint("CK_QualityObjective_Period",
                     "PeriodStart <= PeriodEnd"));
+            });
+
+            modelBuilder.Entity<CorrectiveAction>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.ReferenceNumber).IsRequired().HasMaxLength(50);
+                entity.Property(value => value.Nonconformity).IsRequired().HasMaxLength(1000);
+                entity.Property(value => value.RootCause).IsRequired().HasMaxLength(1000);
+                entity.Property(value => value.ActionPlan).IsRequired().HasMaxLength(1000);
+                entity.Property(value => value.Owner).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(value => value.ReferenceNumber).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_CAPA_ClosedVerification",
+                    "Status <> 4 OR (EffectivenessVerified = 1 AND VerifiedBy IS NOT NULL AND VerifiedAtUtc IS NOT NULL AND CompletedAtUtc IS NOT NULL)"));
             });
         }
 

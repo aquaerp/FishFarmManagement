@@ -1216,4 +1216,16 @@ namespace FishFarmManager.Models
         Obsolete = 3
     }
 
+    public enum CapaStatus
+    {
+        [Display(Name = "مفتوح")]
+        Open = 1,
+        [Display(Name = "قيد التنفيذ")]
+        InProgress = 2,
+        [Display(Name = "بانتظار تحقق")]
+        AwaitingVerification = 3,
+        [Display(Name = "مغلق")]
+        Closed = 4
+    }
+
 }
