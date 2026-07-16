@@ -4,12 +4,14 @@ using System.Windows.Forms;
 using FishFarmManager.Models;
 using FishFarmManager.Data;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace FishFarmManager.Forms
 {
     public partial class HACCPRecordForm : Form
     {
         private readonly FishFarmContext _context;
+        private readonly HaccpMonitoringService _monitoringService;
         private HACCPRecord? _currentRecord;
 
         // Designer controls
@@ -23,6 +25,7 @@ namespace FishFarmManager.Forms
         private ComboBox hazardTypeComboBox = null!;
         private ComboBox frequencyComboBox = null!;
         private ComboBox statusComboBox = null!;
+        private ComboBox controlMeasureTypeComboBox = null!;
         private ComboBox pondComboBox = null!;
         
         private TextBox recordNumberTextBox = null!;
@@ -41,6 +44,10 @@ namespace FishFarmManager.Forms
         private TextBox locationTextBox = null!;
         private TextBox recordedByTextBox = null!;
         private TextBox reviewedByTextBox = null!;
+        private TextBox lifecycleStatusTextBox = null!;
+        private TextBox rootCauseTextBox = null!;
+        private TextBox correctiveOwnerTextBox = null!;
+        private TextBox workflowReasonTextBox = null!;
         
         private NumericUpDown severityNumeric = null!;
         private NumericUpDown likelihoodNumeric = null!;
@@ -54,6 +61,7 @@ namespace FishFarmManager.Forms
         private DateTimePicker actionDatePicker = null!;
         private DateTimePicker verificationDatePicker = null!;
         private DateTimePicker reviewDatePicker = null!;
+        private DateTimePicker correctiveDueDatePicker = null!;
         
         private CheckBox withinLimitsCheckBox = null!;
         private CheckBox deviationCheckBox = null!;
@@ -61,16 +69,23 @@ namespace FishFarmManager.Forms
         
         private Button saveButton = null!;
         private Button clearButton = null!;
+        private Button loadButton = null!;
+        private Button applyActionButton = null!;
+        private Button verifyEffectiveButton = null!;
+        private Button verifyFailedButton = null!;
 
         public HACCPRecordForm(FishFarmContext context)
         {
             InitializeComponent();
             _context = context;
+            _monitoringService = new HaccpMonitoringService(context);
             LoadControlPoints();
             LoadHazardTypes();
             LoadMonitoringFrequencies();
             LoadComplianceStatuses();
+            controlMeasureTypeComboBox.DataSource = Enum.GetValues(typeof(FoodSafetyControlMeasureType));
             LoadPonds();
+            SetWorkflowState(null);
         }
 
         private void InitializeComponent()
@@ -156,7 +171,7 @@ namespace FishFarmManager.Forms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 4,
-                RowCount = 5,
+                RowCount = 6,
                 Padding = new Padding(10),
                 AutoScroll = true
             };
@@ -187,12 +202,17 @@ namespace FishFarmManager.Forms
 
             // Row 5: Severity & Likelihood
             hazardPanel.Controls.Add(new Label { Text = "الشدة - Severity (1-5):", AutoSize = true }, 0, 4);
-            severityNumeric = new NumericUpDown { Dock = DockStyle.Fill, Minimum = 1, Maximum = 5, Value = 1 };
+            severityNumeric = new NumericUpDown { Dock = DockStyle.Fill, Minimum = 1, Maximum = 4, Value = 1 };
             hazardPanel.Controls.Add(severityNumeric, 1, 4);
 
             hazardPanel.Controls.Add(new Label { Text = "الاحتمالية - Likelihood (1-5):", AutoSize = true }, 2, 4);
             likelihoodNumeric = new NumericUpDown { Dock = DockStyle.Fill, Minimum = 1, Maximum = 5, Value = 1 };
             hazardPanel.Controls.Add(likelihoodNumeric, 3, 4);
+
+            hazardPanel.Controls.Add(new Label { Text = "تصنيف الإجراء - PRP/OPRP/CCP:", AutoSize = true }, 0, 5);
+            controlMeasureTypeComboBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            hazardPanel.Controls.Add(controlMeasureTypeComboBox, 1, 5);
+            hazardPanel.SetColumnSpan(controlMeasureTypeComboBox, 3);
 
             hazardTabPage.Controls.Add(hazardPanel);
 
@@ -245,7 +265,7 @@ namespace FishFarmManager.Forms
 
             // Row 5: Within Limits & Acceptance
             monitoringPanel.Controls.Add(new Label { Text = "ضمن الحدود - Within Limits:", AutoSize = true }, 0, 4);
-            withinLimitsCheckBox = new CheckBox { Dock = DockStyle.Fill };
+            withinLimitsCheckBox = new CheckBox { Dock = DockStyle.Fill, Enabled = false };
             monitoringPanel.Controls.Add(withinLimitsCheckBox, 1, 4);
 
             monitoringPanel.Controls.Add(new Label { Text = "معايير القبول - Acceptance:", AutoSize = true }, 2, 4);
@@ -254,11 +274,11 @@ namespace FishFarmManager.Forms
 
             // Row 6: Deviation Check & Status
             monitoringPanel.Controls.Add(new Label { Text = "انحراف - Deviation:", AutoSize = true }, 0, 5);
-            deviationCheckBox = new CheckBox { Dock = DockStyle.Fill };
+            deviationCheckBox = new CheckBox { Dock = DockStyle.Fill, Enabled = false };
             monitoringPanel.Controls.Add(deviationCheckBox, 1, 5);
 
             monitoringPanel.Controls.Add(new Label { Text = "الحالة - Status:", AutoSize = true }, 2, 5);
-            statusComboBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            statusComboBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
             monitoringPanel.Controls.Add(statusComboBox, 3, 5);
 
             // Row 7: Deviation Description
@@ -275,39 +295,72 @@ namespace FishFarmManager.Forms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 4,
-                RowCount = 5,
+                RowCount = 8,
                 Padding = new Padding(10),
                 AutoScroll = true
             };
 
-            // Row 1: Corrective Action
-            actionPanel.Controls.Add(new Label { Text = "الإجراء التصحيحي - Corrective Action:", AutoSize = true }, 0, 0);
+            actionPanel.Controls.Add(new Label { Text = "السبب الجذري - Root Cause:", AutoSize = true }, 0, 0);
+            rootCauseTextBox = new TextBox { Dock = DockStyle.Fill, Multiline = true, Height = 60 };
+            actionPanel.Controls.Add(rootCauseTextBox, 1, 0);
+            actionPanel.SetColumnSpan(rootCauseTextBox, 3);
+
+            // Row 2: Corrective Action
+            actionPanel.Controls.Add(new Label { Text = "الإجراء التصحيحي - Corrective Action:", AutoSize = true }, 0, 1);
             correctiveTextBox = new TextBox { Dock = DockStyle.Fill, Multiline = true, Height = 80 };
-            actionPanel.Controls.Add(correctiveTextBox, 1, 0);
+            actionPanel.Controls.Add(correctiveTextBox, 1, 1);
             actionPanel.SetColumnSpan(correctiveTextBox, 3);
 
-            // Row 2: Action Date & Action By
-            actionPanel.Controls.Add(new Label { Text = "تاريخ الإجراء - Action Date:", AutoSize = true }, 0, 1);
+            // Row 3: Action Date & Action By
+            actionPanel.Controls.Add(new Label { Text = "تاريخ الإجراء - Action Date:", AutoSize = true }, 0, 2);
             actionDatePicker = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
-            actionPanel.Controls.Add(actionDatePicker, 1, 1);
+            actionPanel.Controls.Add(actionDatePicker, 1, 2);
 
-            actionPanel.Controls.Add(new Label { Text = "القائم بالإجراء - Action By:", AutoSize = true }, 2, 1);
+            actionPanel.Controls.Add(new Label { Text = "القائم بالإجراء - Action By:", AutoSize = true }, 2, 2);
             actionByTextBox = new TextBox { Dock = DockStyle.Fill };
-            actionPanel.Controls.Add(actionByTextBox, 3, 1);
+            actionPanel.Controls.Add(actionByTextBox, 3, 2);
 
-            // Row 3: Verified Check & Verified By
-            actionPanel.Controls.Add(new Label { Text = "تم التحقق - Verified:", AutoSize = true }, 0, 2);
-            verifiedCheckBox = new CheckBox { Dock = DockStyle.Fill };
-            actionPanel.Controls.Add(verifiedCheckBox, 1, 2);
+            actionPanel.Controls.Add(new Label { Text = "مالك الإجراء - Owner:", AutoSize = true }, 0, 3);
+            correctiveOwnerTextBox = new TextBox { Dock = DockStyle.Fill };
+            actionPanel.Controls.Add(correctiveOwnerTextBox, 1, 3);
+            actionPanel.Controls.Add(new Label { Text = "موعد الإغلاق - Due Date:", AutoSize = true }, 2, 3);
+            correctiveDueDatePicker = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
+            actionPanel.Controls.Add(correctiveDueDatePicker, 3, 3);
 
-            actionPanel.Controls.Add(new Label { Text = "المحقق - Verified By:", AutoSize = true }, 2, 2);
+            // Row 5: Verified Check & Verified By
+            actionPanel.Controls.Add(new Label { Text = "تم التحقق - Verified:", AutoSize = true }, 0, 4);
+            verifiedCheckBox = new CheckBox { Dock = DockStyle.Fill, Enabled = false };
+            actionPanel.Controls.Add(verifiedCheckBox, 1, 4);
+
+            actionPanel.Controls.Add(new Label { Text = "المحقق المستقل - Verified By:", AutoSize = true }, 2, 4);
             verifiedByTextBox = new TextBox { Dock = DockStyle.Fill };
-            actionPanel.Controls.Add(verifiedByTextBox, 3, 2);
+            actionPanel.Controls.Add(verifiedByTextBox, 3, 4);
 
-            // Row 4: Verification Date
-            actionPanel.Controls.Add(new Label { Text = "تاريخ التحقق - Verification Date:", AutoSize = true }, 0, 3);
+            // Row 6: Verification Date and lifecycle
+            actionPanel.Controls.Add(new Label { Text = "تاريخ التحقق - Verification Date:", AutoSize = true }, 0, 5);
             verificationDatePicker = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
-            actionPanel.Controls.Add(verificationDatePicker, 1, 3);
+            actionPanel.Controls.Add(verificationDatePicker, 1, 5);
+            actionPanel.Controls.Add(new Label { Text = "دورة السجل - Lifecycle:", AutoSize = true }, 2, 5);
+            lifecycleStatusTextBox = new TextBox { Dock = DockStyle.Fill, ReadOnly = true };
+            actionPanel.Controls.Add(lifecycleStatusTextBox, 3, 5);
+
+            actionPanel.Controls.Add(new Label { Text = "سبب العملية - Reason:", AutoSize = true }, 0, 6);
+            workflowReasonTextBox = new TextBox { Dock = DockStyle.Fill };
+            actionPanel.Controls.Add(workflowReasonTextBox, 1, 6);
+            actionPanel.SetColumnSpan(workflowReasonTextBox, 3);
+
+            var workflowButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
+            applyActionButton = new Button { Text = "تطبيق الإجراء التصحيحي", AutoSize = true };
+            verifyEffectiveButton = new Button { Text = "تحقق فعال وإغلاق", AutoSize = true };
+            verifyFailedButton = new Button { Text = "تحقق غير فعال", AutoSize = true };
+            applyActionButton.Click += ApplyActionButton_Click;
+            verifyEffectiveButton.Click += (_, _) => VerifyEffectiveness(true);
+            verifyFailedButton.Click += (_, _) => VerifyEffectiveness(false);
+            workflowButtons.Controls.Add(applyActionButton);
+            workflowButtons.Controls.Add(verifyEffectiveButton);
+            workflowButtons.Controls.Add(verifyFailedButton);
+            actionPanel.Controls.Add(workflowButtons, 0, 7);
+            actionPanel.SetColumnSpan(workflowButtons, 4);
 
             actionTabPage.Controls.Add(actionPanel);
 
@@ -348,7 +401,17 @@ namespace FishFarmManager.Forms
             };
             clearButton.Click += ClearButton_Click;
 
+            loadButton = new Button
+            {
+                Text = "تحميل برقم السجل",
+                Width = 150,
+                Height = 35,
+                FlatStyle = FlatStyle.Flat
+            };
+            loadButton.Click += LoadButton_Click;
+
             buttonPanel.Controls.Add(saveButton);
+            buttonPanel.Controls.Add(loadButton);
             buttonPanel.Controls.Add(clearButton);
 
             // Add controls to form
@@ -393,64 +456,176 @@ namespace FishFarmManager.Forms
 
         private void saveButton_Click(object? sender, EventArgs e)
         {
-            if (_currentRecord == null)
-                _currentRecord = new HACCPRecord();
-
-            _currentRecord.RecordNumber = recordNumberTextBox.Text.Trim();
-            _currentRecord.RecordDate = recordDatePicker.Value;
-            
-            if (controlPointComboBox.SelectedItem != null)
-                _currentRecord.ControlPoint = ((HACCPControlPoint)controlPointComboBox.SelectedItem).ToString();
-            _currentRecord.ControlPointDescription = controlPointDescTextBox.Text.Trim();
-            
-            if (hazardTypeComboBox.SelectedItem != null)
-                _currentRecord.HazardType = ((HazardType)hazardTypeComboBox.SelectedItem).ToString();
-            _currentRecord.HazardDescription = hazardDescTextBox.Text.Trim();
-            _currentRecord.Severity = (HazardSeverity)(int)severityNumeric.Value;
-            _currentRecord.Likelihood = (HazardLikelihood)(int)likelihoodNumeric.Value;
-            _currentRecord.MonitoringMethod = monitoringMethodTextBox.Text.Trim();
-            
-            if (frequencyComboBox.SelectedItem != null)
-                _currentRecord.Frequency = (MonitoringFrequency)frequencyComboBox.SelectedItem;
-            _currentRecord.MeasurementUnit = unitTextBox.Text.Trim();
-            _currentRecord.MinimumLimit = minLimitNumeric.Value > 0 ? minLimitNumeric.Value : 0m;
-            _currentRecord.MaximumLimit = maxLimitNumeric.Value > 0 ? maxLimitNumeric.Value : 0m;
-            _currentRecord.TargetValue = targetValueNumeric.Value > 0 ? targetValueNumeric.Value : 0m;
-            _currentRecord.AcceptanceCriteria = acceptanceTextBox.Text.Trim();
-            _currentRecord.ActualValue = actualValueNumeric.Value > 0 ? actualValueNumeric.Value : 0m;
-            _currentRecord.MeasurementTime = measurementDatePicker.Value;
-            
-            if (statusComboBox.SelectedItem != null)
-                _currentRecord.Status = (ComplianceStatus)statusComboBox.SelectedItem;
-            _currentRecord.IsWithinLimits = withinLimitsCheckBox.Checked;
-            _currentRecord.DeviationOccurred = deviationCheckBox.Checked;
-            _currentRecord.DeviationDescription = deviationDescTextBox.Text.Trim();
-            _currentRecord.CorrectiveActions = correctiveTextBox.Text.Trim();
-            _currentRecord.ActionTakenDate = actionDatePicker.Value;
-            _currentRecord.ActionTakenBy = actionByTextBox.Text.Trim();
-            _currentRecord.Verified = verifiedCheckBox.Checked;
-            _currentRecord.VerifiedBy = verifiedByTextBox.Text.Trim();
-            _currentRecord.VerificationDate = verificationDatePicker.Value;
-            _currentRecord.ReferenceDocument = referenceTextBox.Text.Trim();
-            _currentRecord.Notes = notesTextBox.Text.Trim();
-            _currentRecord.EquipmentUsed = equipmentTextBox.Text.Trim();
-            if (pondComboBox.SelectedValue is int pondId && pondId > 0)
-                _currentRecord.PondId = pondId;
-            _currentRecord.Location = locationTextBox.Text.Trim();
-            _currentRecord.RecordedBy = recordedByTextBox.Text.Trim();
-            _currentRecord.ReviewedBy = reviewedByTextBox.Text.Trim();
-            _currentRecord.ReviewDate = reviewDatePicker.Value;
-            _currentRecord.UpdatedAt = DateTime.Now;
-            _currentRecord.UpdatedBy = Environment.UserName;
-            if (_currentRecord.Id == 0)
+            try
             {
-                _currentRecord.CreatedAt = DateTime.Now;
-                _currentRecord.CreatedBy = Environment.UserName;
-                _context.HACCPRecords.Add(_currentRecord);
+                if (_currentRecord != null)
+                    throw new InvalidOperationException("السجل محمّل بالفعل. استخدم مسار الإجراء أو التحقق، أو امسح النموذج لإنشاء قياس جديد.");
+                if (pondComboBox.SelectedValue is not int pondId || pondId <= 0)
+                    throw new InvalidOperationException("يجب اختيار الحوض.");
+
+                var actor = string.IsNullOrWhiteSpace(recordedByTextBox.Text)
+                    ? Environment.UserName
+                    : recordedByTextBox.Text.Trim();
+                var request = new HaccpMeasurementRequest(
+                    pondId,
+                    recordNumberTextBox.Text,
+                    recordDatePicker.Value,
+                    hazardTypeComboBox.SelectedItem?.ToString() ?? string.Empty,
+                    hazardDescTextBox.Text,
+                    (HazardSeverity)(int)severityNumeric.Value,
+                    (HazardLikelihood)(int)likelihoodNumeric.Value,
+                    controlPointComboBox.SelectedItem?.ToString() ?? string.Empty,
+                    (FoodSafetyControlMeasureType)(controlMeasureTypeComboBox.SelectedItem
+                        ?? FoodSafetyControlMeasureType.Prp),
+                    monitoringMethodTextBox.Text,
+                    (MonitoringFrequency)(frequencyComboBox.SelectedItem ?? MonitoringFrequency.Daily),
+                    unitTextBox.Text,
+                    minLimitNumeric.Value,
+                    maxLimitNumeric.Value,
+                    targetValueNumeric.Value,
+                    actualValueNumeric.Value,
+                    measurementDatePicker.Value,
+                    acceptanceTextBox.Text,
+                    deviationDescTextBox.Text,
+                    referenceTextBox.Text,
+                    equipmentTextBox.Text,
+                    locationTextBox.Text,
+                    notesTextBox.Text,
+                    controlPointDescTextBox.Text);
+
+                _currentRecord = _monitoringService.RecordMeasurement(
+                    request, actor, "إدخال قياس HACCP عبر الشاشة المحكومة");
+                SetWorkflowState(_currentRecord);
+                MessageBox.Show(
+                    $"تم تسجيل القياس. المطابقة: {(_currentRecord.IsWithinLimits ? "ضمن الحدود" : "انحراف")}. الحالة: {_currentRecord.LifecycleStatus}",
+                    "HACCP", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            _context.SaveChanges();
-            MessageBox.Show("تم حفظ سجل HACCP بنجاح!", "حفظ", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            ClearForm();
+            catch (Exception exception)
+            {
+                MessageBox.Show(exception.Message, "تعذر حفظ قياس HACCP", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void LoadButton_Click(object? sender, EventArgs e)
+        {
+            var number = recordNumberTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(number))
+            {
+                MessageBox.Show("أدخل رقم السجل أولاً.", "HACCP", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var record = _context.HACCPRecords.AsNoTracking()
+                .OrderByDescending(value => value.Id)
+                .FirstOrDefault(value => value.RecordNumber == number);
+            if (record == null)
+            {
+                MessageBox.Show("لم يتم العثور على السجل.", "HACCP", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            _currentRecord = record;
+            PopulateRecord(record);
+            SetWorkflowState(record);
+        }
+
+        private void ApplyActionButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (_currentRecord == null) throw new InvalidOperationException("احفظ القياس أو حمّل سجلاً أولاً.");
+                var actor = string.IsNullOrWhiteSpace(actionByTextBox.Text) ? Environment.UserName : actionByTextBox.Text.Trim();
+                _currentRecord = _monitoringService.ApplyCorrectiveAction(
+                    _currentRecord.Id, rootCauseTextBox.Text, correctiveTextBox.Text,
+                    correctiveOwnerTextBox.Text, actionDatePicker.Value, correctiveDueDatePicker.Value,
+                    actor, RequiredWorkflowReason());
+                SetWorkflowState(_currentRecord);
+                MessageBox.Show("تم توثيق الإجراء وأصبح السجل بانتظار تحقق مستقل.", "HACCP", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(exception.Message, "تعذر تطبيق الإجراء", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void VerifyEffectiveness(bool effective)
+        {
+            try
+            {
+                if (_currentRecord == null) throw new InvalidOperationException("احفظ القياس أو حمّل سجلاً أولاً.");
+                _currentRecord = _monitoringService.VerifyEffectiveness(
+                    _currentRecord.Id, effective, verificationDatePicker.Value,
+                    verifiedByTextBox.Text, RequiredWorkflowReason());
+                SetWorkflowState(_currentRecord);
+                MessageBox.Show(effective ? "تم التحقق المستقل وإغلاق السجل." : "فشل التحقق وأعيد السجل للإجراء التصحيحي.",
+                    "HACCP", MessageBoxButtons.OK, effective ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(exception.Message, "تعذر إتمام التحقق", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private string RequiredWorkflowReason()
+        {
+            var reason = workflowReasonTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("سبب العملية إلزامي لسجل التدقيق.");
+            return reason;
+        }
+
+        private void SetWorkflowState(HACCPRecord? record)
+        {
+            var hasRecord = record != null;
+            var closed = record?.LifecycleStatus == HaccpRecordLifecycleStatus.Closed;
+            saveButton.Enabled = !hasRecord;
+            applyActionButton.Enabled = hasRecord && record!.DeviationOccurred && !closed;
+            verifyEffectiveButton.Enabled = hasRecord && record!.LifecycleStatus == HaccpRecordLifecycleStatus.AwaitingVerification;
+            verifyFailedButton.Enabled = verifyEffectiveButton.Enabled;
+            lifecycleStatusTextBox.Text = record?.LifecycleStatus.ToString() ?? "قياس جديد";
+            withinLimitsCheckBox.Checked = record?.IsWithinLimits ?? false;
+            deviationCheckBox.Checked = record?.DeviationOccurred ?? false;
+            verifiedCheckBox.Checked = record?.Verified ?? false;
+            if (record != null) statusComboBox.SelectedItem = record.Status;
+            if (record != null && actionDatePicker.Value < record.MeasurementTime)
+                actionDatePicker.Value = record.MeasurementTime;
+            if (record?.VerificationDate is DateTime verificationDate)
+                verificationDatePicker.Value = verificationDate;
+        }
+
+        private void PopulateRecord(HACCPRecord record)
+        {
+            recordDatePicker.Value = record.RecordDate;
+            pondComboBox.SelectedValue = record.PondId;
+            locationTextBox.Text = record.Location;
+            equipmentTextBox.Text = record.EquipmentUsed;
+            recordedByTextBox.Text = record.RecordedBy;
+            reviewedByTextBox.Text = record.ReviewedBy;
+            referenceTextBox.Text = record.ReferenceDocument;
+            notesTextBox.Text = record.Notes;
+            if (Enum.TryParse<HACCPControlPoint>(record.ControlPoint, out var controlPoint)) controlPointComboBox.SelectedItem = controlPoint;
+            controlPointDescTextBox.Text = record.ControlPointDescription;
+            if (Enum.TryParse<HazardType>(record.HazardType, out var hazardType)) hazardTypeComboBox.SelectedItem = hazardType;
+            hazardDescTextBox.Text = record.HazardDescription;
+            severityNumeric.Value = (int)record.Severity;
+            likelihoodNumeric.Value = (int)record.Likelihood;
+            controlMeasureTypeComboBox.SelectedItem = record.ControlMeasureType;
+            monitoringMethodTextBox.Text = record.MonitoringMethod;
+            frequencyComboBox.SelectedItem = record.Frequency;
+            measurementDatePicker.Value = record.MeasurementTime;
+            unitTextBox.Text = record.MeasurementUnit;
+            minLimitNumeric.Value = record.MinimumLimit;
+            maxLimitNumeric.Value = record.MaximumLimit;
+            targetValueNumeric.Value = record.TargetValue;
+            actualValueNumeric.Value = record.ActualValue;
+            acceptanceTextBox.Text = record.AcceptanceCriteria;
+            deviationDescTextBox.Text = record.DeviationDescription;
+            rootCauseTextBox.Text = record.RootCause;
+            correctiveTextBox.Text = record.CorrectiveActions;
+            correctiveOwnerTextBox.Text = record.CorrectiveActionOwner;
+            actionByTextBox.Text = record.ActionTakenBy;
+            verifiedByTextBox.Text = record.VerifiedBy;
+            if (record.CorrectiveActionDueDate is DateTime dueDate) correctiveDueDatePicker.Value = dueDate;
+            if (record.ActionTakenDate is DateTime actionDate) actionDatePicker.Value = actionDate;
         }
 
         private void ClearForm()
@@ -471,7 +646,17 @@ namespace FishFarmManager.Forms
             locationTextBox.Clear();
             recordedByTextBox.Clear();
             reviewedByTextBox.Clear();
-            // ...reset all numeric and checkbox controls...
+            rootCauseTextBox.Clear();
+            correctiveOwnerTextBox.Clear();
+            workflowReasonTextBox.Clear();
+            minLimitNumeric.Value = 0;
+            maxLimitNumeric.Value = 0;
+            targetValueNumeric.Value = 0;
+            actualValueNumeric.Value = 0;
+            severityNumeric.Value = 1;
+            likelihoodNumeric.Value = 1;
+            _currentRecord = null;
+            SetWorkflowState(null);
         }
 
         // Helper class for ComboBox binding

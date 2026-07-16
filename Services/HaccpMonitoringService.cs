@@ -29,7 +29,8 @@ public sealed record HaccpMeasurementRequest(
     string? ReferenceDocument,
     string? EquipmentUsed = null,
     string? Location = null,
-    string? Notes = null);
+    string? Notes = null,
+    string? ControlPointDescription = null);
 
 public sealed class HaccpMonitoringService
 {
@@ -74,6 +75,7 @@ public sealed class HaccpMonitoringService
             Likelihood = request.Likelihood,
             RiskLevel = RiskLevel(request.Severity, request.Likelihood),
             ControlPoint = request.ControlPoint.Trim(),
+            ControlPointDescription = request.ControlPointDescription?.Trim(),
             ControlMeasureType = request.ControlMeasureType,
             MonitoringMethod = request.MonitoringMethod.Trim(),
             Frequency = request.Frequency,

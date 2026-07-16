@@ -161,6 +161,7 @@ namespace FishFarmManager
             services.AddTransient<ProductionCycleForm>();
             services.AddTransient<FeedingRecordForm>();
             services.AddTransient<WaterQualityForm>();
+            services.AddTransient<HACCPRecordForm>();
             services.AddTransient<MortalityRecordForm>();
             services.AddTransient<DashboardForm>();
             

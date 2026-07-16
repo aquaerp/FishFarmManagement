@@ -160,6 +160,7 @@ namespace FishFarmManager.Forms
             managementMenu.DropDownItems.Add("الدورات الإنتاجية", null, ManageCycles_Click);
             managementMenu.DropDownItems.Add("تسجيل التغذية", null, RecordFeeding_Click);
             managementMenu.DropDownItems.Add("مراقبة جودة المياه", null, MonitorWaterQuality_Click);
+            managementMenu.DropDownItems.Add("مراقبة HACCP وسلامة الغذاء", null, MonitorHaccp_Click);
             managementMenu.DropDownItems.Add("تسجيل النفوق", null, RecordMortality_Click);
             managementMenu.DropDownItems.Add(new ToolStripSeparator());
             managementMenu.DropDownItems.Add("سجل الأدوية والمعالجات", null, TreatmentRecord_Click);
@@ -432,6 +433,12 @@ namespace FishFarmManager.Forms
         private void MonitorWaterQuality_Click(object? sender, EventArgs e)
         {
             var form = _serviceProvider.GetRequiredService<WaterQualityForm>();
+            ShowChildForm(form);
+        }
+
+        private void MonitorHaccp_Click(object? sender, EventArgs e)
+        {
+            var form = _serviceProvider.GetRequiredService<HACCPRecordForm>();
             ShowChildForm(form);
         }
 
