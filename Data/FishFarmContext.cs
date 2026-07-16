@@ -45,6 +45,7 @@ namespace FishFarmManager.Data
         public DbSet<QualityObjective> QualityObjectives { get; set; }
         public DbSet<ControlledDocument> ControlledDocuments { get; set; }
         public DbSet<CorrectiveAction> CorrectiveActions { get; set; }
+        public DbSet<RecallExercise> RecallExercises { get; set; }
 
         // Maintenance System
         public DbSet<Equipment> Equipment { get; set; }
@@ -422,6 +423,16 @@ namespace FishFarmManager.Data
                 entity.HasIndex(value => value.ReferenceNumber).IsUnique();
                 entity.ToTable(table => table.HasCheckConstraint("CK_CAPA_ClosedVerification",
                     "Status <> 4 OR (EffectivenessVerified = 1 AND VerifiedBy IS NOT NULL AND VerifiedAtUtc IS NOT NULL AND CompletedAtUtc IS NOT NULL)"));
+            });
+
+            modelBuilder.Entity<RecallExercise>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.ExerciseNumber).IsRequired().HasMaxLength(50);
+                entity.Property(value => value.TriggerLotCode).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.ConductedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(value => value.ExerciseNumber).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_RecallExercise_Timeline", "CompletedAtUtc >= StartedAtUtc"));
             });
         }
 
