@@ -9,18 +9,6 @@ using FishFarmManager.Models;
 namespace FishFarmManager.Services;
 
 public enum ZatcaApiEnvironment { Disabled, Simulation, Production }
-public enum ZatcaSubmissionDisposition
-{
-    Accepted,
-    AcceptedWithWarnings,
-    Rejected,
-    AuthenticationFailed,
-    RouteMismatch,
-    DuplicateOrPreviouslyProcessed,
-    TransientFailure,
-    ProtocolFailure
-}
-
 public sealed record ZatcaApiOptions(
     bool Enabled,
     ZatcaApiEnvironment Environment,
@@ -109,7 +97,7 @@ public abstract class ZatcaApiClientBase : IZatcaApiClient
     {
         ValidateOptions();
         ValidateSubmission(submission);
-        var key = CreateIdempotencyKey(submission);
+        var key = ZatcaSubmissionIdentity.Create(submission.Route, submission.Uuid, submission.InvoiceHashBase64);
         if (_ledger.TryGet(key, out var existing))
             return Task.FromResult(existing with { FromLocalDeduplication = true });
         var operation = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ZatcaApiResult>>(
@@ -231,13 +219,6 @@ public abstract class ZatcaApiClientBase : IZatcaApiClient
             throw new InvalidOperationException("ZATCA CSID and secret are required in memory.");
     }
 
-    private string CreateIdempotencyKey(ZatcaApiSubmission submission)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"{Route}\n{submission.Uuid:D}\n{submission.InvoiceHashBase64}"));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
     private static async Task<string> ReadBoundedAsync(HttpContent content, CancellationToken token)
     {
         var body = await content.ReadAsStringAsync(token).ConfigureAwait(false);
@@ -309,4 +290,14 @@ public abstract class ZatcaApiClientBase : IZatcaApiClient
         new(disposition, code, authorityStatus, body, key, false);
     private static ZatcaApiResult Transient(string key, string message) =>
         Result(ZatcaSubmissionDisposition.TransientFailure, null, string.Empty, message, key);
+}
+
+public static class ZatcaSubmissionIdentity
+{
+    public static string Create(ZatcaSubmissionRoute route, Guid uuid, string invoiceHashBase64)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{route}\n{uuid:D}\n{invoiceHashBase64}"));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 }

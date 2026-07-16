@@ -4538,6 +4538,40 @@ namespace FishFarmManager.Migrations
                         t.HasCheckConstraint("CK_ZatcaOutbox_Attempts", "AttemptCount >= 0"));
                 });
 
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaSubmissionArchive", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("AttemptNumber").HasColumnType("INTEGER");
+                    b.Property<string>("AuthorityStatus").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<DateTime>("CompletedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("TEXT");
+                    b.Property<int>("Disposition").HasColumnType("INTEGER");
+                    b.Property<long>("DurationMilliseconds").HasColumnType("INTEGER");
+                    b.Property<string>("EndpointPath").IsRequired().HasMaxLength(200).HasColumnType("TEXT");
+                    b.Property<int?>("HttpStatusCode").HasColumnType("INTEGER");
+                    b.Property<string>("IdempotencyKey").IsRequired().HasMaxLength(64).HasColumnType("TEXT");
+                    b.Property<bool>("IsAccepted").HasColumnType("INTEGER");
+                    b.Property<bool>("IsRetryable").HasColumnType("INTEGER");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("TEXT");
+                    b.Property<string>("RequestPayloadJson").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("RequestSha256Base64").IsRequired().HasMaxLength(44).HasColumnType("TEXT");
+                    b.Property<string>("ResponseBody").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("ResponseSha256Base64").IsRequired().HasMaxLength(44).HasColumnType("TEXT");
+                    b.Property<int>("Route").HasColumnType("INTEGER");
+                    b.Property<DateTime>("StartedAtUtc").HasColumnType("TEXT");
+                    b.Property<string>("SubmittedXml").IsRequired().HasColumnType("TEXT");
+                    b.Property<long>("ZatcaDocumentEnvelopeId").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("IdempotencyKey");
+                    b.HasIndex("ZatcaDocumentEnvelopeId", "AttemptNumber").IsUnique();
+                    b.ToTable("ZatcaSubmissionArchives", t =>
+                        {
+                            t.HasCheckConstraint("CK_ZatcaSubmissionArchive_Attempt", "AttemptNumber > 0");
+                            t.HasCheckConstraint("CK_ZatcaSubmissionArchive_Duration", "DurationMilliseconds >= 0");
+                        });
+                });
+
             modelBuilder.Entity("FishFarmManager.Models.WaterQualityRecord", b =>
                 {
                     b.Property<int>("Id")
@@ -4643,6 +4677,16 @@ namespace FishFarmManager.Migrations
                     b.HasOne("FishFarmManager.Models.ZatcaDocumentEnvelope", "ZatcaDocumentEnvelope")
                         .WithOne("OutboxMessage")
                         .HasForeignKey("FishFarmManager.Models.ZatcaOutboxMessage", "ZatcaDocumentEnvelopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                    b.Navigation("ZatcaDocumentEnvelope");
+                });
+
+            modelBuilder.Entity("FishFarmManager.Models.ZatcaSubmissionArchive", b =>
+                {
+                    b.HasOne("FishFarmManager.Models.ZatcaDocumentEnvelope", "ZatcaDocumentEnvelope")
+                        .WithMany("SubmissionArchives")
+                        .HasForeignKey("ZatcaDocumentEnvelopeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                     b.Navigation("ZatcaDocumentEnvelope");
@@ -5424,6 +5468,8 @@ namespace FishFarmManager.Migrations
                     b.Navigation("CanonicalizationEvidence");
 
                     b.Navigation("OutboxMessage");
+
+                    b.Navigation("SubmissionArchives");
                 });
 
             modelBuilder.Entity("FishFarmManager.Models.ZatcaEgsUnit", b =>

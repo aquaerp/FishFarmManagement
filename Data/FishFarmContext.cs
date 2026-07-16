@@ -104,6 +104,7 @@ namespace FishFarmManager.Data
         public DbSet<ZatcaDocumentEnvelope> ZatcaDocumentEnvelopes { get; set; }
         public DbSet<ZatcaOutboxMessage> ZatcaOutboxMessages { get; set; }
         public DbSet<ZatcaCanonicalizationEvidence> ZatcaCanonicalizationEvidence { get; set; }
+        public DbSet<ZatcaSubmissionArchive> ZatcaSubmissionArchives { get; set; }
 
         // Fixed Assets System
         public DbSet<FixedAsset> FixedAssets { get; set; }
@@ -183,6 +184,29 @@ namespace FishFarmManager.Data
                 entity.HasOne(value => value.ZatcaDocumentEnvelope).WithOne(value => value.CanonicalizationEvidence)
                     .HasForeignKey<ZatcaCanonicalizationEvidence>(value => value.ZatcaDocumentEnvelopeId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<ZatcaSubmissionArchive>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.EndpointPath).IsRequired().HasMaxLength(200);
+                entity.Property(value => value.IdempotencyKey).IsRequired().HasMaxLength(64);
+                entity.Property(value => value.RequestPayloadJson).IsRequired();
+                entity.Property(value => value.RequestSha256Base64).IsRequired().HasMaxLength(44);
+                entity.Property(value => value.SubmittedXml).IsRequired();
+                entity.Property(value => value.ResponseBody).IsRequired();
+                entity.Property(value => value.ResponseSha256Base64).IsRequired().HasMaxLength(44);
+                entity.Property(value => value.AuthorityStatus).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Reason).IsRequired().HasMaxLength(500);
+                entity.HasIndex(value => new { value.ZatcaDocumentEnvelopeId, value.AttemptNumber }).IsUnique();
+                entity.HasIndex(value => value.IdempotencyKey);
+                entity.HasOne(value => value.ZatcaDocumentEnvelope).WithMany(value => value.SubmissionArchives)
+                    .HasForeignKey(value => value.ZatcaDocumentEnvelopeId).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_ZatcaSubmissionArchive_Attempt", "AttemptNumber > 0");
+                    table.HasCheckConstraint("CK_ZatcaSubmissionArchive_Duration", "DurationMilliseconds >= 0");
+                });
             });
         }
 
