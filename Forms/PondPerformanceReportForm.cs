@@ -242,14 +242,12 @@ namespace FishFarmManager.Forms
             var startDate = _startDatePicker.Value;
             var endDate = _endDatePicker.Value;
 
-            var pondPerformance = _context.Ponds
+            var ponds = _context.Ponds.AsNoTracking()
                 .Include(p => p.ProductionCyclePonds)
                     .ThenInclude(pcp => pcp.ProductionCycle)
-                .Where(p => p.ProductionCyclePonds.Any(pcp => 
-                    pcp.ProductionCycle.EndDate.HasValue && 
-                    pcp.ProductionCycle.EndDate.Value >= startDate && 
-                    pcp.ProductionCycle.EndDate.Value <= endDate))
-                .Select(p => new
+                .ToList();
+
+            var pondPerformance = ponds.Select(p => new
                 {
                     Pond = p,
                     Cycles = p.ProductionCyclePonds

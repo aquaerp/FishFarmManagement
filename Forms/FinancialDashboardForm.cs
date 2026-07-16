@@ -330,6 +330,8 @@ namespace FishFarmManager.Forms
                 for (int month = 1; month <= 12; month++)
                 {
                     var startDate = new DateTime(currentYear, month, 1);
+                    if (startDate.Date > DateTime.Now.Date)
+                        break;
                     var endDate = startDate.AddMonths(1).AddDays(-1);
                     
                     if (endDate > DateTime.Now) endDate = DateTime.Now;

@@ -570,10 +570,12 @@ namespace FishFarmManager.Forms
                     query = query.Where(a => a.Status == status);
                 }
 
-                var attendances = await query
-                .OrderByDescending(a => a.Date)
+                var attendanceRows = await query
+                    .OrderByDescending(a => a.Date)
                     .ThenBy(a => a.Employee!.FullName)
-                    .Select(a => new
+                    .ToListAsync();
+
+                var attendances = attendanceRows.Select(a => new
             {
                 a.Id,
                 التاريخ = a.Date.ToString("yyyy-MM-dd"),
@@ -586,7 +588,7 @@ namespace FishFarmManager.Forms
                 الحالة = StatusDisplayMap.ContainsKey(a.Status) ? StatusDisplayMap[a.Status] : a.Status.ToString(),
                         ملاحظات = a.Notes ?? ""
                     })
-                    .ToListAsync();
+                    .ToList();
 
                 _attendanceGrid.DataSource = attendances;
 
@@ -604,7 +606,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading attendance data", ex);
+                LoggingService.LogError(ex, "Error loading attendance data");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

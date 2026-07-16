@@ -337,8 +337,8 @@ namespace FishFarmManager.Forms
         {
             try
             {
-                if (_monthComboBox != null)
-                    _monthComboBox.SelectedIndex = DateTime.Now.Month - 1;
+                if (_monthComboBox != null && _monthComboBox.Items.Count > 0)
+                    _monthComboBox.SelectedIndex = Math.Min(DateTime.Now.Month - 1, _monthComboBox.Items.Count - 1);
                     
                 if (_yearComboBox != null)
                     _yearComboBox.SelectedItem = DateTime.Now.Year;
@@ -350,7 +350,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error initializing SalaryProcessingForm", ex);
+                LoggingService.LogError(ex, "Error initializing SalaryProcessingForm");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
