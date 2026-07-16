@@ -51,6 +51,11 @@ public sealed class ZatcaXadesSignatureService
         var document = LoadUbl(request.UnsignedXml);
         if (document.SelectSingleNode("//*[local-name()='UBLExtensions' or local-name()='Signature']") is not null)
             throw new InvalidOperationException("Only an unsigned UBL document without signature containers can be signed.");
+        var typeCode = document.SelectSingleNode("//*[local-name()='InvoiceTypeCode' or local-name()='CreditNoteTypeCode']")
+            as XmlElement ?? throw new InvalidOperationException("The ZATCA invoice type code is required.");
+        if (typeCode.GetAttribute("name") != "0200000")
+            throw new InvalidOperationException(
+                "Standard documents are cleared and stamped by ZATCA; the EGS may locally stamp only simplified documents and their notes.");
         var hash = new ZatcaInvoiceHashService().Compute(request.UnsignedXml);
         var signedXml = new ZatcaSignedXml(document)
         {

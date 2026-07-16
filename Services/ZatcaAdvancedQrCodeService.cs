@@ -32,7 +32,12 @@ public sealed record ZatcaSigningMaterialEvidence(
 public sealed class ZatcaAdvancedQrCodeService
 {
     public string GenerateBase64(ZatcaAdvancedQrRequest request)
-        => Convert.ToBase64String(GenerateTlv(request));
+    {
+        var result = Convert.ToBase64String(GenerateTlv(request));
+        if (result.Length > 700)
+            throw new InvalidOperationException("The ZATCA QR Base64 payload exceeds the 700-character limit.");
+        return result;
+    }
 
     public byte[] GenerateTlv(ZatcaAdvancedQrRequest request)
     {

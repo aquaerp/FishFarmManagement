@@ -79,7 +79,7 @@ public sealed class Phase4ZatcaXadesTests
     private static ZatcaUblDocumentRequest Request() => new(
         "INV-XADES-1", Guid.Parse("602ddbb0-2a7f-4785-a5df-3c80e629c596"),
         new DateTimeOffset(2026, 7, 16, 12, 30, 0, TimeSpan.FromHours(3)),
-        ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.TaxInvoice, 1,
+        ZatcaInvoiceProfile.Simplified, ZatcaDocumentKind.TaxInvoice, 1,
         Convert.ToBase64String(new byte[32]),
         new ZatcaParty("Aqua Farm", "310123456700003", "King Road", "1234", "Riyadh", "12345"),
         new ZatcaParty("Customer", "310987654300003", "Market Road", "5678", "Riyadh", "12345"),
