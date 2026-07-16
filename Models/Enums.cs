@@ -1165,4 +1165,43 @@ namespace FishFarmManager.Models
         Closed = 4
     }
 
+    public enum QualityRiskType
+    {
+        [Display(Name = "خطر")]
+        Risk = 1,
+
+        [Display(Name = "فرصة")]
+        Opportunity = 2
+    }
+
+    public enum QualityRiskStatus
+    {
+        [Display(Name = "مفتوح")]
+        Open = 1,
+
+        [Display(Name = "قيد المعالجة")]
+        InTreatment = 2,
+
+        [Display(Name = "قيد المراقبة")]
+        Monitoring = 3,
+
+        [Display(Name = "مغلق")]
+        Closed = 4
+    }
+
+    public enum QualityObjectiveStatus
+    {
+        [Display(Name = "نشط")]
+        Active = 1,
+
+        [Display(Name = "متحقق")]
+        Achieved = 2,
+
+        [Display(Name = "متأخر")]
+        Overdue = 3,
+
+        [Display(Name = "ملغى")]
+        Cancelled = 4
+    }
+
 }

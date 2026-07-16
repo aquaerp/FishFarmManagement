@@ -41,6 +41,8 @@ namespace FishFarmManager.Data
         public DbSet<HealthInspection> HealthInspections { get; set; }
         public DbSet<Certification> Certifications { get; set; }
         public DbSet<CertificationRecord> CertificationRecords { get; set; }
+        public DbSet<QualityRiskRegister> QualityRiskRegisters { get; set; }
+        public DbSet<QualityObjective> QualityObjectives { get; set; }
 
         // Maintenance System
         public DbSet<Equipment> Equipment { get; set; }
@@ -375,6 +377,35 @@ namespace FishFarmManager.Data
                     table.HasCheckConstraint("CK_HACCPRecord_ClosedVerification",
                         "LifecycleStatus <> 4 OR (Verified = 1 AND EffectivenessVerified = 1 AND VerificationDate IS NOT NULL AND EffectivenessVerificationDate IS NOT NULL)");
                 });
+            });
+
+            modelBuilder.Entity<QualityRiskRegister>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.ReferenceNumber).IsRequired().HasMaxLength(50);
+                entity.Property(value => value.Title).IsRequired().HasMaxLength(200);
+                entity.Property(value => value.Description).IsRequired().HasMaxLength(2000);
+                entity.Property(value => value.Category).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Owner).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.TreatmentPlan).IsRequired().HasMaxLength(2000);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(value => value.ReferenceNumber).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_QualityRiskRegister_Score",
+                    "Likelihood BETWEEN 1 AND 5 AND Impact BETWEEN 1 AND 5 AND Score = Likelihood * Impact"));
+            });
+
+            modelBuilder.Entity<QualityObjective>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.ObjectiveCode).IsRequired().HasMaxLength(50);
+                entity.Property(value => value.Title).IsRequired().HasMaxLength(200);
+                entity.Property(value => value.Measure).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Unit).IsRequired().HasMaxLength(50);
+                entity.Property(value => value.Owner).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(value => value.ObjectiveCode).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_QualityObjective_Period",
+                    "PeriodStart <= PeriodEnd"));
             });
         }
 
