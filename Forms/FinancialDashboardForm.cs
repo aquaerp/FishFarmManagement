@@ -251,7 +251,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading dashboard data", ex);
+                LoggingService.LogError(ex, "Error loading dashboard data");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally

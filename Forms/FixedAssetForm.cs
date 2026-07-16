@@ -559,19 +559,19 @@ namespace FishFarmManager.Forms
                     AssetNumber = _assetNumberTextBox.Text,
                     AssetName = _assetNameTextBox.Text,
                     Description = _descriptionTextBox.Text,
-                    Category = (AssetCategory)_categoryComboBox.SelectedValue,
+                    Category = _categoryComboBox.SelectedValue is AssetCategory category ? category : throw new InvalidOperationException("اختر فئة الأصل."),
                     PurchaseDate = _purchaseDatePicker.Value,
                     PurchaseCost = _purchaseCostNumeric.Value,
                     ResidualValue = _residualValueNumeric.Value,
                     UsefulLifeYears = (int)_usefulLifeNumeric.Value,
-                    DepreciationMethod = (DepreciationMethod)_depreciationMethodComboBox.SelectedValue,
+                    DepreciationMethod = _depreciationMethodComboBox.SelectedValue is DepreciationMethod method ? method : throw new InvalidOperationException("اختر طريقة الإهلاك."),
                     AnnualDepreciationRate = _depreciationRateNumeric.Value,
                     Location = _locationTextBox.Text,
                     Department = _departmentComboBox.SelectedItem?.ToString(),
                     ResponsibleEmployeeId = _responsibleEmployeeComboBox.SelectedValue as int?,
                     SupplierId = _supplierComboBox.SelectedValue as int?,
                     SerialNumber = _serialNumberTextBox.Text,
-                    Status = (AssetStatus)_statusComboBox.SelectedValue,
+                    Status = _statusComboBox.SelectedValue is AssetStatus status ? status : throw new InvalidOperationException("اختر حالة الأصل."),
                     InServiceDate = _purchaseDatePicker.Value,
                     AccumulatedDepreciation = 0,
                     BookValue = _purchaseCostNumeric.Value,
@@ -615,19 +615,19 @@ namespace FishFarmManager.Forms
                 // تحديث البيانات
                 asset.AssetName = _assetNameTextBox.Text;
                 asset.Description = _descriptionTextBox.Text;
-                asset.Category = (AssetCategory)_categoryComboBox.SelectedValue;
+                asset.Category = _categoryComboBox.SelectedValue is AssetCategory category ? category : throw new InvalidOperationException("اختر فئة الأصل.");
                 asset.PurchaseDate = _purchaseDatePicker.Value;
                 asset.PurchaseCost = _purchaseCostNumeric.Value;
                 asset.ResidualValue = _residualValueNumeric.Value;
                 asset.UsefulLifeYears = (int)_usefulLifeNumeric.Value;
-                asset.DepreciationMethod = (DepreciationMethod)_depreciationMethodComboBox.SelectedValue;
+                asset.DepreciationMethod = _depreciationMethodComboBox.SelectedValue is DepreciationMethod method ? method : throw new InvalidOperationException("اختر طريقة الإهلاك.");
                 asset.AnnualDepreciationRate = _depreciationRateNumeric.Value;
                 asset.Location = _locationTextBox.Text;
                 asset.Department = _departmentComboBox.SelectedItem?.ToString();
                 asset.ResponsibleEmployeeId = _responsibleEmployeeComboBox.SelectedValue as int?;
                 asset.SupplierId = _supplierComboBox.SelectedValue as int?;
                 asset.SerialNumber = _serialNumberTextBox.Text;
-                asset.Status = (AssetStatus)_statusComboBox.SelectedValue;
+                asset.Status = _statusComboBox.SelectedValue is AssetStatus status ? status : throw new InvalidOperationException("اختر حالة الأصل.");
                 asset.UpdatedBy = AuthenticationService.CurrentUsername;
                 asset.UpdatedAt = DateTime.Now;
 
@@ -719,7 +719,9 @@ namespace FishFarmManager.Forms
                 var cost = _purchaseCostNumeric.Value;
                 var residual = _residualValueNumeric.Value;
                 var years = (int)_usefulLifeNumeric.Value;
-                var method = (DepreciationMethod)_depreciationMethodComboBox.SelectedValue;
+                var method = _depreciationMethodComboBox.SelectedValue is DepreciationMethod selectedMethod
+                    ? selectedMethod
+                    : throw new InvalidOperationException("اختر طريقة الإهلاك.");
 
                 var annualDepreciation = method switch
                 {

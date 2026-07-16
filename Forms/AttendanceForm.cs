@@ -374,6 +374,7 @@ namespace FishFarmManager.Forms
                 Font = new Font("Cairo", 9F)
             };
             filterPanel.Controls.Add(_filterStatusComboBox);
+            LoadAttendanceStatuses();
 
             parent.Controls.Add(filterPanel);
         }
@@ -536,9 +537,12 @@ namespace FishFarmManager.Forms
 
             var allStatuses = new List<dynamic> { new { Value = (AttendanceStatus?)null, Display = "الكل" } };
             allStatuses.AddRange(statuses);
-            _filterStatusComboBox.DataSource = allStatuses;
-            _filterStatusComboBox.DisplayMember = "Display";
-            _filterStatusComboBox.ValueMember = "Value";
+            if (_filterStatusComboBox != null)
+            {
+                _filterStatusComboBox.DataSource = allStatuses;
+                _filterStatusComboBox.DisplayMember = "Display";
+                _filterStatusComboBox.ValueMember = "Value";
+            }
 
             if (_statusComboBox.Items.Count > 0)
                 _statusComboBox.SelectedIndex = 0;

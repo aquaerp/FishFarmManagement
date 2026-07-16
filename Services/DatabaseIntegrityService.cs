@@ -336,7 +336,7 @@ namespace FishFarmManager.Services
         /// فحص قيود المفاتيح الخارجية
         /// Check foreign key constraints
         /// </summary>
-        private async Task CheckForeignKeyConstraints(DatabaseIntegrityReport report)
+        private Task CheckForeignKeyConstraints(DatabaseIntegrityReport report)
         {
             var check = new IntegrityCheck
             {
@@ -358,6 +358,7 @@ namespace FishFarmManager.Services
             }
 
             report.Checks.Add(check);
+            return Task.CompletedTask;
         }
 
         /// <summary>

@@ -20,7 +20,6 @@ namespace FishFarmManager.Forms
         #region Fields
 
         private readonly FishFarmContext _context;
-        private int? _currentOrderId;
         private List<PurchaseOrderItemTemp> _orderItems = new List<PurchaseOrderItemTemp>();
 
         // UI Controls - Order Info
@@ -32,7 +31,6 @@ namespace FishFarmManager.Forms
         private ComboBox _priorityComboBox = null!;
         private TextBox _paymentTermsTextBox = null!;
         private NumericUpDown _paymentDueDaysNumeric = null!;
-        private TextBox _deliveryAddressTextBox = null!;
         private TextBox _notesTextBox = null!;
 
         // Items Grid
@@ -445,6 +443,7 @@ namespace FishFarmManager.Forms
 
             _filterStatusComboBox = new ComboBox { Location = new Point(x, 30), Size = new Size(150, 30), DropDownStyle = ComboBoxStyle.DropDownList };
             filterPanel.Controls.Add(_filterStatusComboBox);
+            LoadStatuses();
 
             x -= 170;
 
@@ -506,7 +505,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error initializing PurchaseOrderForm", ex);
+                LoggingService.LogError(ex, "Error initializing PurchaseOrderForm");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -537,7 +536,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading suppliers", ex);
+                LoggingService.LogError(ex, "Error loading suppliers");
             }
         }
 
@@ -557,7 +556,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading inventory items", ex);
+                LoggingService.LogError(ex, "Error loading inventory items");
             }
         }
 
@@ -581,9 +580,12 @@ namespace FishFarmManager.Forms
 
             var allStatuses = new List<dynamic> { new { Value = (PurchaseOrderStatus?)null, Display = "الكل" } };
             allStatuses.AddRange(statuses);
-            _filterStatusComboBox.DataSource = allStatuses;
-            _filterStatusComboBox.DisplayMember = "Display";
-            _filterStatusComboBox.ValueMember = "Value";
+            if (_filterStatusComboBox != null)
+            {
+                _filterStatusComboBox.DataSource = allStatuses;
+                _filterStatusComboBox.DisplayMember = "Display";
+                _filterStatusComboBox.ValueMember = "Value";
+            }
         }
 
         private void LoadPriorities()
@@ -648,7 +650,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading orders list", ex);
+                LoggingService.LogError(ex, "Error loading orders list");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -700,7 +702,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error adding item", ex);
+                LoggingService.LogError(ex, "Error adding item");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -719,7 +721,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error removing item", ex);
+                LoggingService.LogError(ex, "Error removing item");
             }
         }
 
@@ -757,21 +759,22 @@ namespace FishFarmManager.Forms
 
         #region Save Operations
 
-        private async Task SaveButton_ClickAsync()
+        private Task SaveButton_ClickAsync()
         {
             try
             {
                 if (!ValidateOrder())
-                    return;
+                    return Task.CompletedTask;
 
                 // Save logic would go here
                 MessageBox.Show("تم حفظ أمر الشراء كمسودة", "نجح", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error saving order", ex);
+                LoggingService.LogError(ex, "Error saving order");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            return Task.CompletedTask;
         }
 
         private async Task SubmitButton_ClickAsync()
@@ -841,7 +844,6 @@ namespace FishFarmManager.Forms
         {
             try
             {
-                _currentOrderId = null;
                 
                 if (_orderNumberTextBox != null)
                     _orderNumberTextBox.Text = GenerateOrderNumber();
@@ -876,7 +878,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error clearing form", ex);
+                LoggingService.LogError(ex, "Error clearing form");
                 MessageBox.Show($"حدث خطأ في مسح النموذج: {ex.Message}", "خطأ", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -898,4 +900,3 @@ namespace FishFarmManager.Forms
         #endregion
     }
 }
-

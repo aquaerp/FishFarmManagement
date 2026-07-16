@@ -353,7 +353,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading customers", ex);
+                LoggingService.LogError(ex, "Error loading customers");
             }
         }
 
@@ -404,7 +404,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading sales orders", ex);
+                LoggingService.LogError(ex, "Error loading sales orders");
                 MessageBox.Show($"خطأ في تحميل فواتير المبيعات: {ex.Message}", "خطأ", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -468,7 +468,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error loading sales order data", ex);
+                LoggingService.LogError(ex, "Error loading sales order data");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -500,7 +500,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error generating QR code", ex);
+                LoggingService.LogError(ex, "Error generating QR code");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -539,7 +539,9 @@ namespace FishFarmManager.Forms
                     InvoiceNumber = _invoiceNumberTextBox.Text,
                     IssueDate = _issueDatePicker.Value,
                     SupplyDate = _issueDatePicker.Value,
-                    InvoiceType = (InvoiceType)_invoiceTypeComboBox.SelectedValue,
+                    InvoiceType = _invoiceTypeComboBox.SelectedValue is InvoiceType invoiceType
+                        ? invoiceType
+                        : throw new InvalidOperationException("يرجى اختيار نوع الفاتورة."),
                     
                     // بيانات البائع (من الإعدادات - يمكن تخصيصها لاحقًا)
                     SellerVATNumber = "310123456700003", // يجب استبداله بالرقم الفعلي من الإعدادات
@@ -547,7 +549,9 @@ namespace FishFarmManager.Forms
                     SellerAddress = "المملكة العربية السعودية", // يجب استبداله بالعنوان الفعلي
                     
                     // بيانات المشتري
-                    CustomerId = (int)_customerComboBox.SelectedValue,
+                    CustomerId = _customerComboBox.SelectedValue is int customerId
+                        ? customerId
+                        : throw new InvalidOperationException("يرجى اختيار العميل."),
                     BuyerName = _customerComboBox.Text,
                     
                     // ربط بفاتورة المبيعات إذا كانت موجودة
@@ -606,7 +610,7 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                LoggingService.LogError("Error saving tax invoice", ex);
+                LoggingService.LogError(ex, "Error saving tax invoice");
                 MessageBox.Show($"حدث خطأ عند الحفظ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -627,7 +631,7 @@ namespace FishFarmManager.Forms
             _selectedSalesOrderId = null;
         }
 
-        private async void PrintButton_Click(object? sender, EventArgs e)
+        private void PrintButton_Click(object? sender, EventArgs e)
         {
             try
             {
@@ -652,7 +656,9 @@ namespace FishFarmManager.Forms
                     InvoiceNumber = _invoiceNumberTextBox.Text,
                     IssueDate = _issueDatePicker.Value,
                     SupplyDate = _issueDatePicker.Value,
-                    InvoiceType = (InvoiceType)_invoiceTypeComboBox.SelectedValue,
+                    InvoiceType = _invoiceTypeComboBox.SelectedValue is InvoiceType invoiceType
+                        ? invoiceType
+                        : throw new InvalidOperationException("يرجى اختيار نوع الفاتورة."),
                     
                     // بيانات البائع
                     SellerVATNumber = "310123456700003",
@@ -660,7 +666,9 @@ namespace FishFarmManager.Forms
                     SellerAddress = "المملكة العربية السعودية",
                     
                     // بيانات المشتري
-                    CustomerId = (int)_customerComboBox.SelectedValue,
+                    CustomerId = _customerComboBox.SelectedValue is int customerId
+                        ? customerId
+                        : throw new InvalidOperationException("يرجى اختيار العميل."),
                     BuyerName = _customerComboBox.Text,
                     
                     // المبالغ من Labels

@@ -20,7 +20,6 @@ namespace FishFarmManager.Forms
         #region Fields
 
         private readonly FishFarmContext _context;
-        private int? _currentReceivingId;
         private List<ReceivingItemTemp> _receivingItems = new List<ReceivingItemTemp>();
 
         // UI Controls
@@ -442,11 +441,15 @@ namespace FishFarmManager.Forms
                 var receiving = new PurchaseReceiving
                 {
                     ReceivingNumber = _receivingNumberTextBox.Text,
-                    PurchaseOrderId = (int)_purchaseOrderComboBox.SelectedValue,
+                    PurchaseOrderId = _purchaseOrderComboBox.SelectedValue is int purchaseOrderId
+                        ? purchaseOrderId
+                        : throw new InvalidOperationException("يرجى اختيار أمر الشراء."),
                     ReceivingDate = _receivingDatePicker.Value,
                     IsFullReceiving = true,
                     IsPartialReceiving = false,
-                    OverallQualityResult = (QualityTestResult)_qualityResultComboBox.SelectedValue,
+                    OverallQualityResult = _qualityResultComboBox.SelectedValue is QualityTestResult qualityResult
+                        ? qualityResult
+                        : throw new InvalidOperationException("يرجى اختيار نتيجة الفحص."),
                     QualityInspectionCompleted = true,
                     InspectedBy = AuthenticationService.CurrentUsername,
                     InspectionDate = DateTime.Now,
@@ -531,7 +534,6 @@ namespace FishFarmManager.Forms
 
         private void ClearForm()
         {
-            _currentReceivingId = null;
             _receivingNumberTextBox.Text = GenerateReceivingNumber();
             _receivingDatePicker.Value = DateTime.Today;
             _purchaseOrderComboBox.SelectedIndex = -1;

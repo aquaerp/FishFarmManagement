@@ -153,7 +153,6 @@ namespace FishFarmManager.Forms
             mainPanel.Controls.Add(infoLabel);
             
             int y = 70;
-            int labelWidth = 150;
             int textBoxX = 1100;
             int textBoxWidth = 400;
             
