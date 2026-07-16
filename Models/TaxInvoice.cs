@@ -127,6 +127,11 @@ namespace FishFarmManager.Models
         // Reference to Sales Order
         public int? SalesOrderId { get; set; }
 
+        public int? OriginalTaxInvoiceId { get; set; }
+
+        [StringLength(500)]
+        public string? AdjustmentReason { get; set; }
+
         [StringLength(1000)]
         [Display(Name = "ملاحظات")]
         public string? Notes { get; set; }
@@ -144,6 +149,11 @@ namespace FishFarmManager.Models
 
         [ForeignKey(nameof(SalesOrderId))]
         public virtual SalesOrder? SalesOrder { get; set; }
+
+        [ForeignKey(nameof(OriginalTaxInvoiceId))]
+        public virtual TaxInvoice? OriginalTaxInvoice { get; set; }
+
+        public virtual ICollection<TaxInvoice> AdjustmentDocuments { get; set; } = new List<TaxInvoice>();
 
         public virtual ICollection<TaxInvoiceItem> Items { get; set; } = new List<TaxInvoiceItem>();
 

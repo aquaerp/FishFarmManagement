@@ -52,6 +52,8 @@ public enum PostingEventType
     DepreciationApproved,
     InventoryMovementApproved,
     ProductionCostEventApproved,
+    TaxCreditNoteIssued,
+    TaxDebitNoteIssued,
     VatReturnSubmitted
 }
 public enum PostingComponent
@@ -237,6 +239,30 @@ public sealed class OperationalPostingRecord
     public JournalEntry JournalEntry { get; set; } = null!;
     public DateTime CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
+}
+
+public sealed class VatReturnLedgerReconciliation
+{
+    public long Id { get; set; }
+    public int VatReturnId { get; set; }
+    public VATReturn VatReturn { get; set; } = null!;
+    public int Version { get; set; }
+    public DateTime PeriodStartDate { get; set; }
+    public DateTime PeriodEndDate { get; set; }
+    public decimal DeclaredOutputVat { get; set; }
+    public decimal DeclaredInputVat { get; set; }
+    public decimal LedgerOutputVat { get; set; }
+    public decimal LedgerInputVat { get; set; }
+    public decimal OutputDifference { get; set; }
+    public decimal InputDifference { get; set; }
+    public int SalesPostingCount { get; set; }
+    public int PurchasePostingCount { get; set; }
+    public int CreditNotePostingCount { get; set; }
+    public int DebitNotePostingCount { get; set; }
+    public bool IsReconciled { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
 }
 
 public sealed class AccountingAdjustment

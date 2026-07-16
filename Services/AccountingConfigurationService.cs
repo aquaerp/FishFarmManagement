@@ -8,8 +8,8 @@ namespace FishFarmManager.Services;
 public sealed class AccountingConfigurationService
 {
     public const string PilotConfigurationName = "Saudi Pilot Chart of Accounts";
-    public const int PilotConfigurationVersion = 5;
-    private const int RequiredPilotMappingCount = 28;
+    public const int PilotConfigurationVersion = 6;
+    private const int RequiredPilotMappingCount = 34;
     private readonly FishFarmContext _context;
 
     public AccountingConfigurationService(FishFarmContext context) => _context = context;
@@ -55,6 +55,12 @@ public sealed class AccountingConfigurationService
                 Map(PostingEventType.ProductionCostEventApproved, PostingComponent.WorkInProgressInventory, accounts["1160"]),
                 Map(PostingEventType.ProductionCostEventApproved, PostingComponent.InventoryLossExpense, accounts["5410"]),
                 Map(PostingEventType.ProductionCostEventApproved, PostingComponent.ProductionCostClearing, accounts["2160"]),
+                Map(PostingEventType.TaxCreditNoteIssued, PostingComponent.AccountsReceivable, accounts["1120"]),
+                Map(PostingEventType.TaxCreditNoteIssued, PostingComponent.SalesRevenue, accounts["4100"]),
+                Map(PostingEventType.TaxCreditNoteIssued, PostingComponent.OutputVat, accounts["2200"]),
+                Map(PostingEventType.TaxDebitNoteIssued, PostingComponent.AccountsReceivable, accounts["1120"]),
+                Map(PostingEventType.TaxDebitNoteIssued, PostingComponent.SalesRevenue, accounts["4100"]),
+                Map(PostingEventType.TaxDebitNoteIssued, PostingComponent.OutputVat, accounts["2200"]),
                 Map(PostingEventType.VatReturnSubmitted, PostingComponent.OutputVat, accounts["2200"]),
                 Map(PostingEventType.VatReturnSubmitted, PostingComponent.InputVat, accounts["1140"]),
                 Map(PostingEventType.VatReturnSubmitted, PostingComponent.VatPayable, accounts["2210"]),

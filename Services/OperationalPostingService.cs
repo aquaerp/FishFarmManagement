@@ -271,6 +271,17 @@ public sealed class OperationalPostingService
         if (vatReturn.Box12_Adjustments != 0m || vatReturn.Box14_RecoverablePreviousPeriod != 0m)
             throw new InvalidOperationException(
                 "VAT return adjustments and prior-period recoverable balances require an accountant-approved adjustment workflow.");
+        var reconciliation = _context.VatReturnLedgerReconciliations.AsNoTracking()
+            .Where(item => item.VatReturnId == vatReturn.Id)
+            .OrderByDescending(item => item.Version)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException("A successful immutable VAT-to-ledger reconciliation is required before settlement.");
+        if (!reconciliation.IsReconciled
+            || reconciliation.PeriodStartDate.Date != vatReturn.PeriodStartDate.Date
+            || reconciliation.PeriodEndDate.Date != vatReturn.PeriodEndDate.Date
+            || reconciliation.DeclaredOutputVat != vatReturn.Box6_VATOnSales
+            || reconciliation.DeclaredInputVat != vatReturn.Box10_VATOnPurchases)
+            throw new InvalidOperationException("The VAT return no longer matches its approved ledger reconciliation.");
         var outputVat = vatReturn.Box6_VATOnSales;
         var inputVat = vatReturn.Box10_VATOnPurchases;
         if (outputVat < 0m || inputVat < 0m || decimal.Round(outputVat, 2) != outputVat || decimal.Round(inputVat, 2) != inputVat)
@@ -292,6 +303,47 @@ public sealed class OperationalPostingService
             vatReturn.SubmissionDate.Value.Date, fiscalPeriodId,
             $"Submitted VAT return {vatReturn.PeriodNumber}", $"VAT-{vatReturn.PeriodNumber}",
             actor, reason, postings);
+    }
+
+    public JournalEntry CreateTaxAdjustmentNoteDraft(int taxInvoiceId, int fiscalPeriodId, string actor, string reason)
+    {
+        var note = _context.TaxInvoices.AsNoTracking().Include(item => item.OriginalTaxInvoice)
+            .SingleOrDefault(item => item.Id == taxInvoiceId)
+            ?? throw new InvalidOperationException("The tax adjustment document does not exist.");
+        if (note.InvoiceType is not (InvoiceType.CreditNote or InvoiceType.DebitNote))
+            throw new InvalidOperationException("Only a credit note or debit note can use the tax-adjustment posting workflow.");
+        if (note.OriginalTaxInvoice == null
+            || note.OriginalTaxInvoice.InvoiceType is InvoiceType.CreditNote or InvoiceType.DebitNote)
+            throw new InvalidOperationException("The adjustment must reference an original standard or simplified tax invoice.");
+        if (string.IsNullOrWhiteSpace(note.AdjustmentReason))
+            throw new InvalidOperationException("A documented adjustment reason is required.");
+        if (note.CustomerId != note.OriginalTaxInvoice.CustomerId
+            || note.SellerVATNumber != note.OriginalTaxInvoice.SellerVATNumber)
+            throw new InvalidOperationException("The adjustment customer and seller VAT number must match the original invoice.");
+        var total = note.TotalWithVAT;
+        var vat = note.VATAmount;
+        if (total <= 0m || vat < 0m || vat > total
+            || decimal.Round(total, 2) != total || decimal.Round(vat, 2) != vat)
+            throw new InvalidOperationException("Tax adjustment amounts must be positive SAR values with two-decimal precision.");
+        var net = total - vat;
+        var isCredit = note.InvoiceType == InvoiceType.CreditNote;
+        var postings = isCredit
+            ? new[]
+            {
+                new ComponentPosting(PostingComponent.SalesRevenue, net, 0m, "Revenue reduced by credit note"),
+                new ComponentPosting(PostingComponent.OutputVat, vat, 0m, "Output VAT reduced by credit note"),
+                new ComponentPosting(PostingComponent.AccountsReceivable, 0m, total, "Receivable reduced by credit note")
+            }
+            : new[]
+            {
+                new ComponentPosting(PostingComponent.AccountsReceivable, total, 0m, "Receivable increased by debit note"),
+                new ComponentPosting(PostingComponent.SalesRevenue, 0m, net, "Revenue increased by debit note"),
+                new ComponentPosting(PostingComponent.OutputVat, 0m, vat, "Output VAT increased by debit note")
+            };
+        var eventType = isCredit ? PostingEventType.TaxCreditNoteIssued : PostingEventType.TaxDebitNoteIssued;
+        return CreateMappedDraft(eventType, nameof(TaxInvoice), note.Id.ToString(), note.IssueDate,
+            fiscalPeriodId, $"{note.InvoiceType} {note.InvoiceNumber} for {note.OriginalTaxInvoice.InvoiceNumber}",
+            note.InvoiceNumber, actor, reason, postings);
     }
 
     private static ComponentPosting[] InventoryDecrease(PostingComponent expenseComponent, decimal amount, string description) =>

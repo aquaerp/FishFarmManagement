@@ -89,6 +89,7 @@ namespace FishFarmManager.Data
         public DbSet<AccountingConfiguration> AccountingConfigurations { get; set; }
         public DbSet<PostingMapping> PostingMappings { get; set; }
         public DbSet<OperationalPostingRecord> OperationalPostingRecords { get; set; }
+        public DbSet<VatReturnLedgerReconciliation> VatReturnLedgerReconciliations { get; set; }
         public DbSet<AccountingAdjustment> AccountingAdjustments { get; set; }
         public DbSet<ForeignExchangeRate> ForeignExchangeRates { get; set; }
         public DbSet<ForeignMonetaryItem> ForeignMonetaryItems { get; set; }
@@ -837,6 +838,23 @@ namespace FishFarmManager.Data
                     .HasForeignKey(e => e.JournalEntryId).OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<VatReturnLedgerReconciliation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.VatReturnId, e.Version }).IsUnique();
+                entity.Property(e => e.DeclaredOutputVat).HasPrecision(18, 2);
+                entity.Property(e => e.DeclaredInputVat).HasPrecision(18, 2);
+                entity.Property(e => e.LedgerOutputVat).HasPrecision(18, 2);
+                entity.Property(e => e.LedgerInputVat).HasPrecision(18, 2);
+                entity.Property(e => e.OutputDifference).HasPrecision(18, 2);
+                entity.Property(e => e.InputDifference).HasPrecision(18, 2);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Reason).IsRequired().HasMaxLength(500);
+                entity.HasOne(e => e.VatReturn).WithMany()
+                    .HasForeignKey(e => e.VatReturnId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<AccountingAdjustment>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -930,12 +948,20 @@ namespace FishFarmManager.Data
                 entity.Property(e => e.TotalWithVAT).HasColumnType("decimal(18,2)");
                 entity.Property(e => e.SellerVATNumber).IsRequired().HasMaxLength(15);
                 entity.Property(e => e.BuyerVATNumber).HasMaxLength(15);
+                entity.Property(e => e.AdjustmentReason).HasMaxLength(500);
 
                 // Relationships
                 entity.HasOne(e => e.Customer)
                     .WithMany()
                     .HasForeignKey(e => e.CustomerId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.OriginalTaxInvoice)
+                    .WithMany(e => e.AdjustmentDocuments)
+                    .HasForeignKey(e => e.OriginalTaxInvoiceId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_TaxInvoice_AdjustmentReference",
+                    "(InvoiceType IN (3, 4) AND OriginalTaxInvoiceId IS NOT NULL AND length(trim(AdjustmentReason)) > 0) OR (InvoiceType IN (1, 2) AND OriginalTaxInvoiceId IS NULL)"));
             });
 
             // TaxInvoiceItem Configuration

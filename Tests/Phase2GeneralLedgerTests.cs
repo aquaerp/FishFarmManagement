@@ -390,31 +390,116 @@ public sealed class Phase2GeneralLedgerTests
     {
         using var database = LedgerTestDatabase.Create();
         database.ApprovePilotConfiguration();
+        var saleId = database.SeedCompletedSalesOrder(1_150m, 150m);
+        var purchaseId = database.SeedApprovedPurchaseReceiving(230m, 30m);
+        var ledger = new GeneralLedgerService(database.Context);
+        var sale = new OperationalPostingService(database.Context).CreateSalesCompletionDraft(
+            saleId, database.PeriodId, "sales-accountant", "Completed sale for VAT return");
+        ledger.Approve(sale.Id, "sales-reviewer", "Sale VAT checked");
+        ledger.Post(sale.Id, "sales-poster", "Sale posted");
+        var purchase = new OperationalPostingService(database.Context).CreatePurchaseReceiptDraft(
+            purchaseId, database.PeriodId, "purchase-accountant", "Received purchase for VAT return");
+        ledger.Approve(purchase.Id, "purchase-reviewer", "Purchase VAT checked");
+        ledger.Post(purchase.Id, "purchase-poster", "Purchase posted");
         var payableId = database.SeedSubmittedVatReturn(150m, 30m, "202601");
-        var receivableId = database.SeedSubmittedVatReturn(20m, 50m, "202602");
+        var mismatchId = database.SeedSubmittedVatReturn(20m, 50m, "202602");
         var adjustedId = database.SeedSubmittedVatReturn(75m, 25m, "202603");
         var adjusted = database.Context.VATReturns.Single(value => value.Id == adjustedId);
         adjusted.Box12_Adjustments = 5m;
         adjusted.Box15_NetVATDueForPeriod = 55m;
         database.Context.SaveChanges();
+        var reconciliationService = new VatLedgerReconciliationService(database.Context);
+        var reconciliation = reconciliationService.Reconcile(
+            payableId, "tax-reviewer", "VAT boxes agree to posted operational journals");
+        var mismatch = reconciliationService.Reconcile(
+            mismatchId, "tax-reviewer", "Record mismatch evidence");
         var posting = new OperationalPostingService(database.Context);
 
         var payable = posting.CreateVatReturnSettlementDraft(
             payableId, database.PeriodId, "tax-accountant", "Submitted VAT payable return");
-        var receivable = posting.CreateVatReturnSettlementDraft(
-            receivableId, database.PeriodId, "tax-accountant", "Submitted VAT refund return");
         var payableLines = database.LinesWithAccountCodes(payable.Id);
-        var receivableLines = database.LinesWithAccountCodes(receivable.Id);
 
+        Assert.True(reconciliation.IsReconciled);
+        Assert.Equal(150m, reconciliation.LedgerOutputVat);
+        Assert.Equal(30m, reconciliation.LedgerInputVat);
+        Assert.False(mismatch.IsReconciled);
         Assert.Contains(payableLines, line => line.Code == "2200" && line.Debit == 150m);
         Assert.Contains(payableLines, line => line.Code == "1140" && line.Credit == 30m);
         Assert.Contains(payableLines, line => line.Code == "2210" && line.Credit == 120m);
-        Assert.Contains(receivableLines, line => line.Code == "2200" && line.Debit == 20m);
-        Assert.Contains(receivableLines, line => line.Code == "1140" && line.Credit == 50m);
-        Assert.Contains(receivableLines, line => line.Code == "1150" && line.Debit == 30m);
+        Assert.Throws<InvalidOperationException>(() => posting.CreateVatReturnSettlementDraft(
+            mismatchId, database.PeriodId, "tax-accountant", "Mismatched VAT return"));
         Assert.Throws<InvalidOperationException>(() => posting.CreateVatReturnSettlementDraft(
             adjustedId, database.PeriodId, "tax-accountant", "Unsupported VAT adjustment"));
+        var corrected = database.Context.VATReturns.Single(value => value.Id == mismatchId);
+        corrected.Box6_VATOnSales = 150m;
+        corrected.Box10_VATOnPurchases = 30m;
+        corrected.Box11_NetVATDue = 120m;
+        corrected.Box13_TotalVATDue = 120m;
+        corrected.Box15_NetVATDueForPeriod = 120m;
+        database.Context.SaveChanges();
+        var correctedEvidence = reconciliationService.Reconcile(
+            mismatchId, "tax-reviewer", "Corrected return now agrees to posted journals");
+        Assert.Equal(2, correctedEvidence.Version);
+        Assert.True(correctedEvidence.IsReconciled);
+        reconciliation.Reason = "tampered";
+        Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }
+
+    [Fact]
+    public void CreditAndDebitNotes_ReferenceOriginalInvoiceAndPostOppositeVatEffects()
+    {
+        using var database = LedgerTestDatabase.Create();
+        database.ApprovePilotConfiguration();
+        var customer = new Customer
+        {
+            Name = "VAT adjustment customer", Type = CustomerType.Wholesale,
+            Status = CustomerStatus.Active, CreatedAt = DateTime.UtcNow
+        };
+        var original = TaxDocument("INV-ORIGINAL", InvoiceType.Standard, customer, 1_000m, 150m);
+        database.Context.Add(original);
+        database.Context.SaveChanges();
+        var credit = TaxDocument("CN-001", InvoiceType.CreditNote, customer, 100m, 15m);
+        credit.OriginalTaxInvoiceId = original.Id;
+        credit.AdjustmentReason = "Documented returned goods";
+        var debit = TaxDocument("DN-001", InvoiceType.DebitNote, customer, 40m, 6m);
+        debit.OriginalTaxInvoiceId = original.Id;
+        debit.AdjustmentReason = "Documented price correction";
+        database.Context.AddRange(credit, debit);
+        database.Context.SaveChanges();
+        var posting = new OperationalPostingService(database.Context);
+
+        var creditEntry = posting.CreateTaxAdjustmentNoteDraft(
+            credit.Id, database.PeriodId, "tax-accountant", "Approved return documentation");
+        var debitEntry = posting.CreateTaxAdjustmentNoteDraft(
+            debit.Id, database.PeriodId, "tax-accountant", "Approved price correction");
+        var creditLines = database.LinesWithAccountCodes(creditEntry.Id);
+        var debitLines = database.LinesWithAccountCodes(debitEntry.Id);
+
+        Assert.Contains(creditLines, line => line.Code == "4100" && line.Debit == 85m);
+        Assert.Contains(creditLines, line => line.Code == "2200" && line.Debit == 15m);
+        Assert.Contains(creditLines, line => line.Code == "1120" && line.Credit == 100m);
+        Assert.Contains(debitLines, line => line.Code == "1120" && line.Debit == 40m);
+        Assert.Contains(debitLines, line => line.Code == "4100" && line.Credit == 34m);
+        Assert.Contains(debitLines, line => line.Code == "2200" && line.Credit == 6m);
+    }
+
+    private static TaxInvoice TaxDocument(
+        string number, InvoiceType type, Customer customer, decimal total, decimal vat) => new()
+    {
+        InvoiceNumber = number,
+        InvoiceType = type,
+        IssueDate = new DateTime(2026, 1, 20),
+        SupplyDate = new DateTime(2026, 1, 20),
+        SellerVATNumber = "123456789012345",
+        SellerName = "Test seller",
+        Customer = customer,
+        BuyerName = customer.Name,
+        SubTotal = total - vat,
+        VATRate = 15m,
+        VATAmount = vat,
+        TotalWithVAT = total,
+        CreatedBy = "test"
+    };
 
     [Fact]
     public void WeightedAverageInventory_ApprovesAtomicallyAndPreventsNegativeOrMutableHistory()
