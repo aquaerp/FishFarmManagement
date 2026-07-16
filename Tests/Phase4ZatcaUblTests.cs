@@ -6,6 +6,31 @@ namespace FishFarmManager.Tests;
 
 public sealed class Phase4ZatcaUblTests
 {
+    [Theory]
+    [InlineData(ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.TaxInvoice, "Invoice", "388", "0100000", ZatcaSubmissionRoute.Clearance)]
+    [InlineData(ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.CreditNote, "CreditNote", "381", "0100000", ZatcaSubmissionRoute.Clearance)]
+    [InlineData(ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.DebitNote, "Invoice", "383", "0100000", ZatcaSubmissionRoute.Clearance)]
+    [InlineData(ZatcaInvoiceProfile.Simplified, ZatcaDocumentKind.TaxInvoice, "Invoice", "388", "0200000", ZatcaSubmissionRoute.Reporting)]
+    [InlineData(ZatcaInvoiceProfile.Simplified, ZatcaDocumentKind.CreditNote, "CreditNote", "381", "0200000", ZatcaSubmissionRoute.Reporting)]
+    [InlineData(ZatcaInvoiceProfile.Simplified, ZatcaDocumentKind.DebitNote, "Invoice", "383", "0200000", ZatcaSubmissionRoute.Reporting)]
+    public void LocalPositiveMatrix_CoversAllSixProfileAndDocumentCombinations(
+        ZatcaInvoiceProfile profile, ZatcaDocumentKind kind, string rootName, string code,
+        string transactionType, ZatcaSubmissionRoute route)
+    {
+        var request = Request(profile, kind);
+        if (kind != ZatcaDocumentKind.TaxInvoice)
+            request = request with { OriginalInvoiceNumber = "INV-ORIGINAL", NoteReason = "Documented adjustment" };
+
+        var root = new ZatcaUblGenerator().Generate(request).Root!;
+        var typeCode = root.Element(ZatcaUblGenerator.Cbc
+            + (kind == ZatcaDocumentKind.CreditNote ? "CreditNoteTypeCode" : "InvoiceTypeCode"))!;
+
+        Assert.Equal(rootName, root.Name.LocalName);
+        Assert.Equal(code, typeCode.Value);
+        Assert.Equal(transactionType, typeCode.Attribute("name")!.Value);
+        Assert.Equal(route, request.SubmissionRoute);
+    }
+
     [Fact]
     public void StandardTaxInvoice_GeneratesUblInvoiceForClearance()
     {
@@ -70,6 +95,26 @@ public sealed class Phase4ZatcaUblTests
             {
                 Buyer = Party("Buyer", "")
             }));
+    }
+
+    [Fact]
+    public void LocalNegativeMatrix_RejectsInvalidPihVatCurrencyTaxAndAmounts()
+    {
+        var generator = new ZatcaUblGenerator();
+        var baseline = Request(ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.TaxInvoice);
+        Assert.Throws<InvalidOperationException>(() => generator.Generate(
+            baseline with { PreviousInvoiceHashBase64 = Convert.ToBase64String(new byte[31]) }));
+        Assert.Throws<InvalidOperationException>(() => generator.Generate(
+            baseline with { Seller = Party("Seller", "123") }));
+        Assert.Throws<InvalidOperationException>(() => generator.Generate(baseline with { CurrencyCode = "USD" }));
+        Assert.Throws<InvalidOperationException>(() => generator.Generate(baseline with
+        {
+            Lines = new[] { baseline.Lines[0] with { TaxPercent = 5m } }
+        }));
+        Assert.Throws<InvalidOperationException>(() => generator.Generate(baseline with
+        {
+            Lines = new[] { baseline.Lines[0] with { DiscountAmount = 101m } }
+        }));
     }
 
     private static ZatcaUblDocumentRequest Request(ZatcaInvoiceProfile profile, ZatcaDocumentKind kind) =>

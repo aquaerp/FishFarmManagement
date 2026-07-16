@@ -16,7 +16,11 @@ public sealed record ZatcaApiOptions(
     TimeSpan Timeout,
     string AcceptVersion = "v2");
 
-public sealed record ZatcaApiAuthentication(string Csid, string Secret);
+public sealed record ZatcaApiAuthentication(
+    string Csid,
+    string Secret,
+    DateTimeOffset ValidFromUtc,
+    DateTimeOffset ExpiresAtUtc);
 
 public sealed record ZatcaApiSubmission(
     Guid Uuid,
@@ -60,16 +64,18 @@ public interface IZatcaApiClient
 
 public sealed class ZatcaClearanceClient : ZatcaApiClientBase
 {
-    public ZatcaClearanceClient(HttpClient httpClient, ZatcaApiOptions options, IZatcaSubmissionLedger ledger)
-        : base(httpClient, options, ledger) { }
+    public ZatcaClearanceClient(HttpClient httpClient, ZatcaApiOptions options, IZatcaSubmissionLedger ledger,
+        TimeProvider? timeProvider = null)
+        : base(httpClient, options, ledger, timeProvider) { }
     public override ZatcaSubmissionRoute Route => ZatcaSubmissionRoute.Clearance;
     protected override string RelativeEndpoint => "invoices/clearance/single";
 }
 
 public sealed class ZatcaReportingClient : ZatcaApiClientBase
 {
-    public ZatcaReportingClient(HttpClient httpClient, ZatcaApiOptions options, IZatcaSubmissionLedger ledger)
-        : base(httpClient, options, ledger) { }
+    public ZatcaReportingClient(HttpClient httpClient, ZatcaApiOptions options, IZatcaSubmissionLedger ledger,
+        TimeProvider? timeProvider = null)
+        : base(httpClient, options, ledger, timeProvider) { }
     public override ZatcaSubmissionRoute Route => ZatcaSubmissionRoute.Reporting;
     protected override string RelativeEndpoint => "invoices/reporting/single";
 }
@@ -80,13 +86,16 @@ public abstract class ZatcaApiClientBase : IZatcaApiClient
     private readonly HttpClient _httpClient;
     private readonly ZatcaApiOptions _options;
     private readonly IZatcaSubmissionLedger _ledger;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, Lazy<Task<ZatcaApiResult>>> _inFlight = new(StringComparer.Ordinal);
 
-    protected ZatcaApiClientBase(HttpClient httpClient, ZatcaApiOptions options, IZatcaSubmissionLedger ledger)
+    protected ZatcaApiClientBase(HttpClient httpClient, ZatcaApiOptions options, IZatcaSubmissionLedger ledger,
+        TimeProvider? timeProvider)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public abstract ZatcaSubmissionRoute Route { get; }
@@ -217,6 +226,13 @@ public abstract class ZatcaApiClientBase : IZatcaApiClient
         if (string.IsNullOrWhiteSpace(submission.Authentication?.Csid)
             || string.IsNullOrWhiteSpace(submission.Authentication.Secret))
             throw new InvalidOperationException("ZATCA CSID and secret are required in memory.");
+        var now = _timeProvider.GetUtcNow();
+        if (submission.Authentication.ValidFromUtc >= submission.Authentication.ExpiresAtUtc)
+            throw new InvalidOperationException("The ZATCA CSID validity window is invalid.");
+        if (now < submission.Authentication.ValidFromUtc)
+            throw new InvalidOperationException("The ZATCA CSID is not valid yet.");
+        if (now >= submission.Authentication.ExpiresAtUtc)
+            throw new InvalidOperationException("The ZATCA CSID has expired and must be renewed before submission.");
     }
 
     private static async Task<string> ReadBoundedAsync(HttpContent content, CancellationToken token)

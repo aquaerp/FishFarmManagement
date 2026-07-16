@@ -59,7 +59,7 @@ public sealed class ZatcaEnvelopePreparationService
             && value.SourceEntityId == sourceEntityId.Trim()))
             throw new InvalidOperationException("This source document already has a ZATCA envelope.");
 
-        var icv = checked(unit.LastReservedInvoiceCounterValue + 1);
+        var icv = ZatcaInvoiceCounterSequence.Next(unit.LastReservedInvoiceCounterValue);
         var request = template with
         {
             Uuid = Guid.NewGuid(),
@@ -106,12 +106,26 @@ public sealed class ZatcaEnvelopePreparationService
     private static void ValidateBase64(string value, string name)
     {
         Require(value, name);
-        try { _ = Convert.FromBase64String(value); }
+        try
+        {
+            if (Convert.FromBase64String(value).Length != 32)
+                throw new InvalidOperationException($"{name} must be a Base64 SHA-256 value.");
+        }
         catch (FormatException) { throw new InvalidOperationException($"{name} must be valid Base64."); }
     }
 
     private static void Require(string? value, string name)
     {
         if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException($"{name} is required.", name);
+    }
+}
+
+public static class ZatcaInvoiceCounterSequence
+{
+    public static long Next(long current)
+    {
+        if (current < 0) throw new InvalidOperationException("The current ZATCA ICV cannot be negative.");
+        if (current == long.MaxValue) throw new InvalidOperationException("The ZATCA ICV sequence is exhausted.");
+        return current + 1;
     }
 }

@@ -131,7 +131,11 @@ public sealed class ZatcaUblGenerator
         if (request.InvoiceCounterValue <= 0) throw new InvalidOperationException("ICV must be positive.");
         if (!string.Equals(request.CurrencyCode, "SAR", StringComparison.Ordinal))
             throw new InvalidOperationException("The initial G4 scope supports SAR documents only.");
-        try { _ = Convert.FromBase64String(request.PreviousInvoiceHashBase64); }
+        try
+        {
+            if (Convert.FromBase64String(request.PreviousInvoiceHashBase64).Length != 32)
+                throw new InvalidOperationException("PIH must be a Base64 SHA-256 value.");
+        }
         catch (FormatException) { throw new InvalidOperationException("PIH must be a valid Base64 hash."); }
         ValidateParty(request.Seller, true, request.Profile);
         ValidateParty(request.Buyer, request.Profile == ZatcaInvoiceProfile.Standard, request.Profile);

@@ -109,7 +109,9 @@ public sealed class Phase4ZatcaSubmissionArchiveTests
         var hash = new ZatcaInvoiceHashService().Compute(prepared.Envelope.UnsignedXml).Base64;
         return new ZatcaApiSubmission(Guid.Parse(prepared.Envelope.Uuid), hash,
             prepared.Envelope.UnsignedXml, prepared.Envelope.SubmissionRoute,
-            new ZatcaApiAuthentication("test-csid", "test-secret"));
+            new ZatcaApiAuthentication("test-csid", "test-secret",
+                new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2099, 1, 1, 0, 0, 0, TimeSpan.Zero)));
     }
 
     private static ZatcaApiResult Result(ZatcaApiSubmission submission,

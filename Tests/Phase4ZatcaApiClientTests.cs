@@ -117,13 +117,76 @@ public sealed class Phase4ZatcaApiClientTests
             reporting.SubmitAsync(Submission(ZatcaSubmissionRoute.Clearance)));
     }
 
+    [Fact]
+    public async Task TransportOutage_IsRetryableAndDoesNotPoisonDeduplicationLedger()
+    {
+        var calls = 0;
+        var client = new ZatcaReportingClient(new HttpClient(new StubHandler(_ =>
+        {
+            calls++;
+            throw new HttpRequestException("offline");
+        })), Simulation(), new InMemoryZatcaSubmissionLedger());
+
+        var first = await client.SubmitAsync(Submission(ZatcaSubmissionRoute.Reporting));
+        var second = await client.SubmitAsync(Submission(ZatcaSubmissionRoute.Reporting));
+
+        Assert.Equal(ZatcaSubmissionDisposition.TransientFailure, first.Disposition);
+        Assert.True(first.IsRetryable);
+        Assert.False(second.FromLocalDeduplication);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentDuplicate_IsCollapsedToOneAuthorityCall()
+    {
+        var calls = 0;
+        var client = new ZatcaReportingClient(new HttpClient(new StubHandler(async _ =>
+        {
+            Interlocked.Increment(ref calls);
+            await Task.Delay(50);
+            return Json(HttpStatusCode.OK, "{\"reportingStatus\":\"REPORTED\"}");
+        })), Simulation(), new InMemoryZatcaSubmissionLedger());
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 100)
+            .Select(_ => client.SubmitAsync(Submission(ZatcaSubmissionRoute.Reporting))));
+
+        Assert.Equal(1, calls);
+        Assert.All(results, result => Assert.True(result.IsAccepted));
+    }
+
+    [Fact]
+    public async Task ExpiredOrNotYetValidCsid_BlocksBeforeNetwork()
+    {
+        var calls = 0;
+        var client = new ZatcaReportingClient(new HttpClient(new StubHandler(_ =>
+        {
+            calls++;
+            return Task.FromResult(Json(HttpStatusCode.OK, "{}"));
+        })), Simulation(), new InMemoryZatcaSubmissionLedger());
+        var now = DateTimeOffset.UtcNow;
+        var expired = Submission(ZatcaSubmissionRoute.Reporting) with
+        {
+            Authentication = new ZatcaApiAuthentication("expired", "secret", now.AddDays(-2), now.AddDays(-1))
+        };
+        var future = Submission(ZatcaSubmissionRoute.Reporting) with
+        {
+            Authentication = new ZatcaApiAuthentication("future", "secret", now.AddDays(1), now.AddDays(2))
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.SubmitAsync(expired));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.SubmitAsync(future));
+        Assert.Equal(0, calls);
+    }
+
     private static ZatcaApiOptions Simulation() => new(true, ZatcaApiEnvironment.Simulation,
         new Uri("https://gw-fatoora.zatca.gov.sa/e-invoicing/simulation/"), TimeSpan.FromSeconds(30));
 
     private static ZatcaApiSubmission Submission(ZatcaSubmissionRoute route) => new(
         Guid.Parse("0c31a257-5088-40b5-9f48-bc2c84898d0a"),
         "ArWKybHgkEDwNFzxarLEOeg3y8qacz6/g98zAuK+ClA=", "<Invoice />", route,
-        new ZatcaApiAuthentication("test-csid", "test-secret"));
+        new ZatcaApiAuthentication("test-csid", "test-secret",
+            new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2099, 1, 1, 0, 0, 0, TimeSpan.Zero)));
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) => new(status)
     {

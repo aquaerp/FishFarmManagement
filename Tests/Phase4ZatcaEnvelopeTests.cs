@@ -102,6 +102,23 @@ public sealed class Phase4ZatcaEnvelopeTests
         Assert.Throws<DbUpdateException>(() => database.Context.SaveChanges());
     }
 
+    [Fact]
+    public void InvoiceCounterSequence_ProducesTenThousandUniqueOrderedValuesAndGuardsBounds()
+    {
+        var values = new HashSet<long>();
+        var current = 0L;
+        for (var index = 0; index < 10_000; index++)
+        {
+            current = ZatcaInvoiceCounterSequence.Next(current);
+            Assert.True(values.Add(current));
+        }
+
+        Assert.Equal(10_000, current);
+        Assert.Equal(10_000, values.Count);
+        Assert.Throws<InvalidOperationException>(() => ZatcaInvoiceCounterSequence.Next(-1));
+        Assert.Throws<InvalidOperationException>(() => ZatcaInvoiceCounterSequence.Next(long.MaxValue));
+    }
+
     private static ZatcaUblDocumentRequest Template() =>
         new("INV-1", Guid.Empty, new DateTimeOffset(2026, 7, 16, 9, 0, 0, TimeSpan.FromHours(3)),
             ZatcaInvoiceProfile.Standard, ZatcaDocumentKind.TaxInvoice, 0, "ignored",
