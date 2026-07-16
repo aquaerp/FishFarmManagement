@@ -1204,4 +1204,16 @@ namespace FishFarmManager.Models
         Cancelled = 4
     }
 
+    public enum ControlledDocumentStatus
+    {
+        [Display(Name = "مسودة")]
+        Draft = 1,
+
+        [Display(Name = "معتمد وساري")]
+        Approved = 2,
+
+        [Display(Name = "ملغى / مؤرشف")]
+        Obsolete = 3
+    }
+
 }

@@ -43,6 +43,7 @@ namespace FishFarmManager.Data
         public DbSet<CertificationRecord> CertificationRecords { get; set; }
         public DbSet<QualityRiskRegister> QualityRiskRegisters { get; set; }
         public DbSet<QualityObjective> QualityObjectives { get; set; }
+        public DbSet<ControlledDocument> ControlledDocuments { get; set; }
 
         // Maintenance System
         public DbSet<Equipment> Equipment { get; set; }
@@ -590,6 +591,22 @@ namespace FishFarmManager.Data
                     table.HasCheckConstraint("CK_InventoryLedgerReconciliation_Counts",
                         "InventoryItemCount >= 0 AND QuantityExceptionCount >= 0 AND ValuationExceptionCount >= 0");
                 });
+            });
+
+            modelBuilder.Entity<ControlledDocument>(entity =>
+            {
+                entity.HasKey(value => value.Id);
+                entity.Property(value => value.DocumentCode).IsRequired().HasMaxLength(50);
+                entity.Property(value => value.Version).IsRequired().HasMaxLength(30);
+                entity.Property(value => value.Title).IsRequired().HasMaxLength(200);
+                entity.Property(value => value.Category).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.Owner).IsRequired().HasMaxLength(100);
+                entity.Property(value => value.StorageReference).IsRequired().HasMaxLength(500);
+                entity.Property(value => value.ContentSha256).IsRequired().HasMaxLength(64);
+                entity.Property(value => value.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.HasIndex(value => new { value.DocumentCode, value.Version }).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_ControlledDocument_Approval",
+                    "Status <> 2 OR (ApprovedBy IS NOT NULL AND ApprovedAtUtc IS NOT NULL AND EffectiveDate IS NOT NULL AND ApprovalReason IS NOT NULL)"));
             });
         }
 
