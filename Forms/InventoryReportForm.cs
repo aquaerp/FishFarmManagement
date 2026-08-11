@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
 using FishFarmManager.Data;
 using FishFarmManager.Models;
+using FishFarmManager.Services;
 using ClosedXML.Excel;
 using PdfSharpCore.Drawing;
 using PdfSharpCore.Pdf;
@@ -265,24 +266,144 @@ namespace FishFarmManager.Forms
             _movementTypeFilter.DataSource = types;
             _movementTypeFilter.DisplayMember = "Text";
             _movementTypeFilter.ValueMember = "Value";
+
+            _movementItemFilter = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            _approvalStatusFilter = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
+            _approvalStatusFilter.DataSource = new[]
+            {
+                new { Value = -1, Text = "كل الحالات" },
+                new { Value = 1, Text = "معتمدة" },
+                new { Value = 0, Text = "مسودة" }
+            };
+            _approvalStatusFilter.DisplayMember = "Text";
+            _approvalStatusFilter.ValueMember = "Value";
+            _movementSearchText = new TextBox { Width = 180, PlaceholderText = "بحث بالمرجع أو الملاحظات" };
+            _movementsRefreshButton = new Button { Text = "تحديث", Width = 90 };
+            _movementsExportButton = new Button { Text = "تصدير Excel", Width = 120 };
+            filterPanel.Controls.AddRange(new Control[]
+            {
+                _movementsExportButton, _movementsRefreshButton,
+                new Label { Text = "بحث:", AutoSize = true, Padding = new Padding(0, 7, 0, 0) }, _movementSearchText,
+                new Label { Text = "الاعتماد:", AutoSize = true, Padding = new Padding(0, 7, 0, 0) }, _approvalStatusFilter,
+                new Label { Text = "النوع:", AutoSize = true, Padding = new Padding(0, 7, 0, 0) }, _movementTypeFilter,
+                new Label { Text = "الصنف:", AutoSize = true, Padding = new Padding(0, 7, 0, 0) }, _movementItemFilter,
+                new Label { Text = "من:", AutoSize = true, Padding = new Padding(0, 7, 0, 0) }, _fromDate,
+                new Label { Text = "إلى:", AutoSize = true, Padding = new Padding(0, 7, 0, 0) }, _toDate
+            });
+
+            _movementsGrid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                AutoGenerateColumns = false,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            };
+            _movementsGrid.Columns.AddRange(new DataGridViewColumn[]
+            {
+                new DataGridViewTextBoxColumn { DataPropertyName = "MovementDate", HeaderText = "التاريخ" },
+                new DataGridViewTextBoxColumn { DataPropertyName = "ItemName", HeaderText = "الصنف" },
+                new DataGridViewTextBoxColumn { DataPropertyName = "MovementType", HeaderText = "النوع" },
+                new DataGridViewTextBoxColumn { DataPropertyName = "Quantity", HeaderText = "الكمية", DefaultCellStyle = new DataGridViewCellStyle { Format = "N3" } },
+                new DataGridViewTextBoxColumn { DataPropertyName = "BalanceAfter", HeaderText = "الرصيد بعد الحركة", DefaultCellStyle = new DataGridViewCellStyle { Format = "N3" } },
+                new DataGridViewTextBoxColumn { DataPropertyName = "Reference", HeaderText = "المرجع" },
+                new DataGridViewCheckBoxColumn { DataPropertyName = "IsApproved", HeaderText = "معتمدة" }
+            });
+            _movementsKpiLabel = new Label { Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleRight };
+            container.Controls.Add(filterPanel, 0, 0);
+            container.Controls.Add(_movementsKpiLabel, 0, 1);
+            container.Controls.Add(_movementsGrid, 0, 2);
+            _movementsTab.Controls.Add(container);
+            _tabs.TabPages.Add(_movementsTab);
+            LoadMovementItems();
+            _fromDate.ValueChanged += (s, e) => LoadMovementsData();
+            _toDate.ValueChanged += (s, e) => LoadMovementsData();
+            _movementTypeFilter.SelectedIndexChanged += (s, e) => LoadMovementsData();
+            _movementItemFilter.SelectedIndexChanged += (s, e) => LoadMovementsData();
+            _approvalStatusFilter.SelectedIndexChanged += (s, e) => LoadMovementsData();
+            _movementSearchText.TextChanged += (s, e) => LoadMovementsData();
+            _movementsRefreshButton.Click += (s, e) => LoadMovementsData();
+            _movementsExportButton.Click += MovementsExportButton_Click;
         }
 
         private void LoadMovementsData()
         {
-            // TODO: Implement LoadMovementsData
-            // This method should load stock movement data
+            if (_movementsGrid == null) return;
+            var from = _fromDate.Value.Date;
+            var to = _toDate.Value.Date.AddDays(1);
+            var query = _context.StockMovements
+                .AsNoTracking()
+                .Include(value => value.InventoryItem)
+                .Where(value => value.MovementDate >= from && value.MovementDate < to);
+            if (_movementTypeFilter.SelectedValue is int movementType && movementType > 0)
+                query = query.Where(value => (int)value.MovementType == movementType);
+            if (_movementItemFilter.SelectedValue is int itemId && itemId > 0)
+                query = query.Where(value => value.InventoryItemId == itemId);
+            if (_approvalStatusFilter.SelectedValue is int approval && approval >= 0)
+                query = query.Where(value => value.IsApproved == (approval == 1));
+            var search = _movementSearchText.Text.Trim();
+            if (search.Length > 0)
+                query = query.Where(value => (value.Reference ?? "").Contains(search) || (value.Notes ?? "").Contains(search));
+
+            var movements = query.OrderByDescending(value => value.MovementDate).ThenByDescending(value => value.Id).ToList();
+            _movementsGrid.DataSource = movements.Select(value => new
+            {
+                MovementDate = value.MovementDate.ToString("yyyy-MM-dd HH:mm"),
+                ItemName = value.InventoryItem.ItemName ?? value.InventoryItem.Name,
+                MovementType = value.GetMovementTypeDisplay(),
+                value.Quantity,
+                value.BalanceAfter,
+                Reference = value.Reference ?? value.ReferenceNumber ?? "-",
+                value.IsApproved
+            }).ToList();
+            _movementsKpiLabel.Text = $"عدد الحركات: {movements.Count} | المعتمدة: {movements.Count(value => value.IsApproved)} | الكمية: {movements.Sum(value => value.Quantity):N3}";
+        }
+
+        private void LoadMovementItems()
+        {
+            var items = _context.InventoryItems.AsNoTracking()
+                .Where(value => value.IsActive)
+                .OrderBy(value => value.Name)
+                .Select(value => new { value.Id, Name = value.ItemName ?? value.Name })
+                .ToList();
+            _movementItemFilter.DataSource = new[] { new { Id = 0, Name = "كل الأصناف" } }.Concat(items).ToList();
+            _movementItemFilter.DisplayMember = "Name";
+            _movementItemFilter.ValueMember = "Id";
         }
 
         private void LoadFishInventoryData()
         {
-            // TODO: Implement LoadFishInventoryData
-            // This method should load fish-specific inventory data
+            if (_inventoryGrid == null) return;
+            var fishItems = _context.InventoryItems.AsNoTracking()
+                .Where(value => value.IsActive && value.Category == InventoryCategory.Fingerlings)
+                .OrderBy(value => value.Name)
+                .Select(value => new
+                {
+                    Code = value.ItemCode ?? value.Code,
+                    Name = value.ItemName ?? value.Name,
+                    value.Unit,
+                    value.CurrentStock,
+                    value.UnitCost,
+                    StockValue = value.CurrentStock * value.UnitCost,
+                    value.StorageLocation,
+                    value.BatchNumber,
+                    value.ExpiryDate
+                }).ToList();
+            _inventoryGrid.DataSource = fishItems;
+            _summaryTextBox.Text = $"عدد أصناف الزريعة: {fishItems.Count}\r\nإجمالي الكمية: {fishItems.Sum(value => value.CurrentStock):N3}\r\nإجمالي القيمة: {fishItems.Sum(value => value.StockValue):N2}";
         }
 
         private void CreateFishInventoryTab()
         {
             _fishInventoryTab = new TabPage("مخزون الأسماك");
-            // TODO: Complete CreateFishInventoryTab implementation
+            var container = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            container.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
+            container.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            _summaryTextBox = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, BackColor = Color.White };
+            _inventoryGrid = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AutoGenerateColumns = true, AllowUserToAddRows = false };
+            container.Controls.Add(_summaryTextBox, 0, 0);
+            container.Controls.Add(_inventoryGrid, 0, 1);
+            _fishInventoryTab.Controls.Add(container);
             _tabs.TabPages.Add(_fishInventoryTab);
         }
 
@@ -290,12 +411,63 @@ namespace FishFarmManager.Forms
         {
             try
             {
-                MessageBox.Show("وظيفة التصدير قيد التطوير", "قريباً", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                // TODO: Implement export to Excel functionality
+                var items = _context.InventoryItems.AsNoTracking()
+                    .OrderBy(value => value.Name)
+                    .ToList()
+                    .Select(value => new
+                    {
+                        Code = value.ItemCode ?? value.Code,
+                        Name = value.ItemName ?? value.Name,
+                        Category = value.Category.ToString(),
+                        value.Unit,
+                        value.CurrentStock,
+                        value.UnitCost,
+                        StockValue = value.CurrentStock * value.UnitCost,
+                        value.MinimumStock,
+                        value.MaximumStock,
+                        value.ReorderPoint,
+                        value.ExpiryDate,
+                        value.IsActive
+                    }).ToList();
+                var path = new ExcelExportService().ExportListToExcel(items, $"Inventory_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx", "Inventory");
+                MessageBox.Show($"تم تصدير التقرير إلى:\n{path}", "نجح", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في التصدير: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LoggingService.LogError(ex, "Error exporting inventory report");
+                MessageBox.Show("تعذر تصدير تقرير المخزون. راجع السجل الفني.", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void MovementsExportButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                var from = _fromDate.Value.Date;
+                var to = _toDate.Value.Date.AddDays(1);
+                var movements = _context.StockMovements.AsNoTracking()
+                    .Include(value => value.InventoryItem)
+                    .Where(value => value.MovementDate >= from && value.MovementDate < to)
+                    .OrderByDescending(value => value.MovementDate)
+                    .ToList()
+                    .Select(value => new
+                    {
+                        value.MovementDate,
+                        Item = value.InventoryItem.ItemName ?? value.InventoryItem.Name,
+                        MovementType = value.MovementType.ToString(),
+                        value.Quantity,
+                        value.UnitCost,
+                        value.TotalCost,
+                        Reference = value.Reference ?? value.ReferenceNumber,
+                        value.IsApproved
+                    }).ToList();
+                var path = new ExcelExportService().ExportListToExcel(movements, $"InventoryMovements_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx", "Movements");
+                MessageBox.Show($"تم تصدير التقرير إلى:\n{path}", "نجح", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error exporting inventory movements");
+                MessageBox.Show("تعذر تصدير حركات المخزون. راجع السجل الفني.", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

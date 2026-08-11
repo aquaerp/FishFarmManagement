@@ -759,14 +759,60 @@ namespace FishFarmManager.Forms
 
         #region Save Operations
 
-        private Task SaveButton_ClickAsync()
+        private async Task SaveButton_ClickAsync()
         {
             try
             {
                 if (!ValidateOrder())
-                    return Task.CompletedTask;
+                    return;
 
-                // Save logic would go here
+                var supplierId = Convert.ToInt32(_supplierComboBox.SelectedValue);
+                var orderNumber = _orderNumberTextBox.Text.Trim();
+                if (await _context.PurchaseOrders.AnyAsync(order => order.OrderNumber == orderNumber))
+                {
+                    orderNumber = GenerateOrderNumber();
+                }
+
+                var order = new PurchaseOrder
+                {
+                    OrderNumber = orderNumber,
+                    OrderDate = _orderDatePicker.Value.Date,
+                    ExpectedDeliveryDate = _expectedDeliveryPicker.Value.Date,
+                    SupplierId = supplierId,
+                    Status = PurchaseOrderStatus.Draft,
+                    PaymentTerms = string.IsNullOrWhiteSpace(_paymentTermsTextBox.Text) ? null : _paymentTermsTextBox.Text.Trim(),
+                    PaymentDueDays = (int)_paymentDueDaysNumeric.Value,
+                    PaymentDueDate = _orderDatePicker.Value.Date.AddDays((int)_paymentDueDaysNumeric.Value),
+                    Priority = _priorityComboBox.SelectedValue is PurchasePriority priority ? priority : PurchasePriority.Normal,
+                    Notes = string.IsNullOrWhiteSpace(_notesTextBox.Text) ? null : _notesTextBox.Text.Trim(),
+                    CreatedBy = AuthenticationService.CurrentUsername,
+                    CreatedAt = DateTime.Now
+                };
+
+                foreach (var item in _orderItems)
+                {
+                    order.Items.Add(new PurchaseOrderItem
+                    {
+                        InventoryItemId = item.InventoryItemId,
+                        ItemName = item.ItemName,
+                        Description = item.Description,
+                        Quantity = item.Quantity,
+                        RemainingQuantity = item.Quantity,
+                        UnitPrice = item.UnitPrice,
+                        DiscountPercentage = item.DiscountPercentage,
+                        DiscountAmount = item.DiscountAmount,
+                        TotalPrice = item.TotalPrice,
+                        CreatedAt = DateTime.Now
+                    });
+                }
+
+                order.CalculateTotals();
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                _context.PurchaseOrders.Add(order);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                await LoadOrdersListAsync();
+
                 MessageBox.Show("تم حفظ أمر الشراء كمسودة", "نجح", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -774,25 +820,107 @@ namespace FishFarmManager.Forms
                 LoggingService.LogError(ex, "Error saving order");
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            return Task.CompletedTask;
         }
 
         private async Task SubmitButton_ClickAsync()
         {
-            await Task.CompletedTask;
-            MessageBox.Show("سيتم تنفيذ هذه الميزة قريباً", "قريباً", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            await TransitionOrderAsync(
+                PurchaseOrderStatus.Draft,
+                PurchaseOrderStatus.Submitted,
+                "تم تقديم أمر الشراء للاعتماد",
+                order =>
+                {
+                    order.RequestedById = AuthenticationService.CurrentUser?.EmployeeId;
+                    order.RequestedDate = DateTime.UtcNow;
+                });
         }
 
         private async Task ApproveButton_ClickAsync()
         {
-            await Task.CompletedTask;
-            MessageBox.Show("سيتم تنفيذ هذه الميزة قريباً", "قريباً", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager))
+            {
+                MessageBox.Show("لا تملك صلاحية اعتماد أوامر الشراء", "تحذير", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            await TransitionOrderAsync(
+                PurchaseOrderStatus.Submitted,
+                PurchaseOrderStatus.Approved,
+                "تم اعتماد أمر الشراء",
+                order =>
+                {
+                    order.ApprovedById = AuthenticationService.CurrentUser?.EmployeeId;
+                    order.ApprovedDate = DateTime.UtcNow;
+                });
         }
 
         private async Task SendButton_ClickAsync()
         {
-            await Task.CompletedTask;
-            MessageBox.Show("سيتم تنفيذ هذه الميزة قريباً", "قريباً", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager, UserRole.Accountant))
+            {
+                MessageBox.Show("لا تملك صلاحية إرسال أوامر الشراء", "تحذير", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            await TransitionOrderAsync(
+                PurchaseOrderStatus.Approved,
+                PurchaseOrderStatus.Sent,
+                "تم إرسال أمر الشراء للمورد",
+                order =>
+                {
+                    order.SentById = AuthenticationService.CurrentUser?.EmployeeId;
+                    order.SentDate = DateTime.UtcNow;
+                });
+        }
+
+        private async Task TransitionOrderAsync(
+            PurchaseOrderStatus expectedStatus,
+            PurchaseOrderStatus targetStatus,
+            string successMessage,
+            Action<PurchaseOrder>? applyWorkflowFields = null)
+        {
+            try
+            {
+                if (_ordersGrid.SelectedRows.Count == 0)
+                {
+                    MessageBox.Show("الرجاء اختيار أمر شراء من القائمة أولاً", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var selectedId = Convert.ToInt32(_ordersGrid.SelectedRows[0].Cells["Id"].Value);
+                var order = await _context.PurchaseOrders.SingleOrDefaultAsync(value => value.Id == selectedId);
+                if (order == null)
+                {
+                    MessageBox.Show("أمر الشراء غير موجود", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (order.Status != expectedStatus)
+                {
+                    MessageBox.Show($"لا يمكن نقل الأمر من الحالة الحالية: {order.GetStatusDisplay()}", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (targetStatus == PurchaseOrderStatus.Approved
+                    && string.Equals(order.CreatedBy, AuthenticationService.CurrentUsername, StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("لا يمكن لمنشئ الأمر اعتماد أمره بنفسه", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                order.Status = targetStatus;
+                applyWorkflowFields?.Invoke(order);
+                order.UpdatedBy = AuthenticationService.CurrentUsername;
+                order.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                await LoadOrdersListAsync();
+                MessageBox.Show(successMessage, "نجح", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error transitioning purchase order");
+                MessageBox.Show("تعذر تحديث حالة أمر الشراء. راجع السجل الفني.", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void PrintButton_Click(object? sender, EventArgs e)
@@ -834,6 +962,12 @@ namespace FishFarmManager.Forms
             if (_orderItems.Count == 0)
             {
                 MessageBox.Show("الرجاء إضافة بنود للطلب", "تحذير", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            if (_orderItems.Any(item => item.Quantity <= 0 || item.UnitPrice < 0))
+            {
+                MessageBox.Show("يجب أن تكون الكميات صحيحة والأسعار غير سالبة", "تحذير", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
