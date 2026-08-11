@@ -26,7 +26,18 @@
 - النتيجة: متطابقان.
 - مجلد الدليل المحلي المؤقت: `AquaFarm-G2-wrapper`.
 
-## المتبقي
+## أدلة GitHub Actions المتتالية
 
-يجب دفع الفرع وتشغيل workflow خمس مرات متتالية بنجاح قبل إغلاق G2 تنظيمياً. كما يجب توفير شهادة code-signing قبل توزيع الحزمة خارج بيئة Pilot داخلية.
+| التشغيل | Commit | Run | النتيجة |
+|---:|---|---|---|
+| 1 | `c01b89d` | [31537041673](https://github.com/aquaerp/FishFarmManagement/actions/runs/31537041673) | ناجح |
+| 2 | `122d4f2` | [31537567902](https://github.com/aquaerp/FishFarmManagement/actions/runs/31537567902) | ناجح |
+| 3 | `d4d13ba` | [31538198895](https://github.com/aquaerp/FishFarmManagement/actions/runs/31538198895) | ناجح |
+| 4 | `c46bf54` | [31538587909](https://github.com/aquaerp/FishFarmManagement/actions/runs/31538587909) | ناجح |
+| 5 | `e8e035d` | [31539101098](https://github.com/aquaerp/FishFarmManagement/actions/runs/31539101098) | ناجح |
 
+كل تشغيل اجتاز `restore/build/test`، تدقيق NuGet، فحص الأسرار، سياسة Release، مقارنة حزمتين حتميتين، ورفع artifacts. وبذلك أغلقت بوابة G2 تنظيمياً وهندسياً.
+
+## متطلبات المراحل اللاحقة
+
+يجب توفير شهادة code-signing قبل توزيع الحزمة خارج بيئة Pilot داخلية.
