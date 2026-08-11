@@ -13,14 +13,15 @@ public sealed class Phase4ZatcaXadesTests
     [Fact]
     public void Sign_ProducesLocallyVerifiableEnvelopedXadesAndRawEcdsaValue()
     {
+        var signingTime = new DateTimeOffset(2026, 7, 16, 9, 30, 0, TimeSpan.Zero);
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        using var certificate = Certificate(key);
+        using var certificate = Certificate(key, signingTime);
         var unsignedXml = new ZatcaUblGenerator().Generate(Request()).ToString(SaveOptions.DisableFormatting);
         var service = new ZatcaXadesSignatureService();
 
         var result = service.Sign(new ZatcaXadesSigningRequest(
             unsignedXml, certificate, key, new[] { certificate },
-            new DateTimeOffset(2026, 7, 16, 9, 30, 0, TimeSpan.Zero)));
+            signingTime));
 
         Assert.True(service.Verify(result.SignedXml));
         Assert.Equal(32, result.InvoiceHash.Length);
@@ -69,11 +70,12 @@ public sealed class Phase4ZatcaXadesTests
             xml, certificate, key, new[] { otherCertificate }, DateTimeOffset.UtcNow)));
     }
 
-    private static X509Certificate2 Certificate(ECDsa key)
+    private static X509Certificate2 Certificate(ECDsa key, DateTimeOffset? validAt = null)
     {
+        var referenceTime = validAt ?? DateTimeOffset.UtcNow;
         var request = new CertificateRequest("CN=Test EGS,O=Fish Farm,C=SA", key, HashAlgorithmName.SHA256);
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
-        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+        return request.CreateSelfSigned(referenceTime.AddDays(-1), referenceTime.AddDays(30));
     }
 
     private static ZatcaUblDocumentRequest Request() => new(

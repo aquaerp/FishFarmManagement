@@ -15,11 +15,12 @@ public sealed class Phase4ZatcaStampedInvoiceTests
     public void Stamp_BuildsSimplifiedQrFromCertificateAndKeepsXadesValid()
     {
         const ZatcaInvoiceProfile profile = ZatcaInvoiceProfile.Simplified;
+        var signingTime = new DateTimeOffset(2026, 7, 16, 9, 30, 0, TimeSpan.Zero);
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        using var certificate = Certificate(key);
+        using var certificate = Certificate(key, signingTime);
         var unsignedXml = new ZatcaUblGenerator().Generate(Request(profile)).ToString(SaveOptions.DisableFormatting);
         var signingRequest = new ZatcaXadesSigningRequest(unsignedXml, certificate, key,
-            new[] { certificate }, new DateTimeOffset(2026, 7, 16, 9, 30, 0, TimeSpan.Zero));
+            new[] { certificate }, signingTime);
 
         var result = new ZatcaStampedInvoiceService().Stamp(new ZatcaStampedInvoiceRequest(
             signingRequest, profile, "Aqua Farm", "310123456700003",
@@ -102,11 +103,12 @@ public sealed class Phase4ZatcaStampedInvoiceTests
         return fields;
     }
 
-    private static X509Certificate2 Certificate(ECDsa key)
+    private static X509Certificate2 Certificate(ECDsa key, DateTimeOffset? validAt = null)
     {
+        var referenceTime = validAt ?? DateTimeOffset.UtcNow;
         var request = new CertificateRequest("CN=Test EGS,O=Fish Farm,C=SA", key, HashAlgorithmName.SHA256);
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
-        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+        return request.CreateSelfSigned(referenceTime.AddDays(-1), referenceTime.AddDays(30));
     }
 
     private static ZatcaUblDocumentRequest Request(ZatcaInvoiceProfile profile) => new(

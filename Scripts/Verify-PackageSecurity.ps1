@@ -4,7 +4,13 @@ param()
 $ErrorActionPreference = "Stop"
 $solution = Join-Path $PSScriptRoot "..\FishFarmManager.sln"
 $env:AquaFarmIsolatedBuild = "true"
-dotnet restore $solution --force-evaluate -p:AquaFarmIsolatedBuild=true
+$env:DOTNET_CLI_USE_MSBUILD_SERVER = "0"
+$env:MSBUILDDISABLENODEREUSE = "1"
+dotnet restore $solution --force-evaluate --disable-parallel `
+    -p:AquaFarmIsolatedBuild=true `
+    -p:RestoreFallbackFolders='' `
+    -m:1 `
+    -nr:false
 if ($LASTEXITCODE -ne 0)
 {
     exit $LASTEXITCODE
