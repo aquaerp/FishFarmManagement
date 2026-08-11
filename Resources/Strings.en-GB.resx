@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AppName" xml:space="preserve"><value>AquaFarm Pro</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Search" xml:space="preserve"><value>Search</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Success" xml:space="preserve"><value>Success</value></data>
+  <data name="Error" xml:space="preserve"><value>Error</value></data>
+  <data name="Warning" xml:space="preserve"><value>Warning</value></data>
+  <data name="Information" xml:space="preserve"><value>Information</value></data>
+  <data name="Confirmation" xml:space="preserve"><value>Confirmation</value></data>
+  <data name="JournalEntries" xml:space="preserve"><value>Journal Entries</value></data>
+  <data name="JournalEntriesTab" xml:space="preserve"><value>Journal Entries</value></data>
+  <data name="AddJournalEntry" xml:space="preserve"><value>Add Journal Entry</value></data>
+  <data name="CurrencySar" xml:space="preserve"><value>SAR</value></data>
+  <data name="RequiredField" xml:space="preserve"><value>{0} is required.</value></data>
+  <data name="Description" xml:space="preserve"><value>Description</value></data>
+  <data name="Account" xml:space="preserve"><value>Account</value></data>
+  <data name="SystemSettings" xml:space="preserve"><value>System Settings</value></data>
+  <data name="DatabaseSettings" xml:space="preserve"><value>Database Settings</value></data>
+  <data name="BackupSettings" xml:space="preserve"><value>Backup Settings</value></data>
+  <data name="UiSettings" xml:space="preserve"><value>Interface Settings</value></data>
+  <data name="ReportSettings" xml:space="preserve"><value>Report Settings</value></data>
+  <data name="DatabasePath" xml:space="preserve"><value>Database path:</value></data>
+  <data name="Browse" xml:space="preserve"><value>Browse</value></data>
+  <data name="ConnectionSettings" xml:space="preserve"><value>Connection settings:</value></data>
+  <data name="ConnectionTimeoutSeconds" xml:space="preserve"><value>Connection timeout (seconds):</value></data>
+  <data name="TestConnection" xml:space="preserve"><value>Test Connection</value></data>
+  <data name="CreateNewDatabase" xml:space="preserve"><value>Create New Database</value></data>
+  <data name="EnableAutomaticBackup" xml:space="preserve"><value>Enable automatic backup</value></data>
+  <data name="BackupFrequency" xml:space="preserve"><value>Backup frequency:</value></data>
+  <data name="SavedBackupsCount" xml:space="preserve"><value>Number of saved backups:</value></data>
+  <data name="BackupPath" xml:space="preserve"><value>Backup path:</value></data>
+  <data name="CreateBackupNow" xml:space="preserve"><value>Create Backup Now</value></data>
+  <data name="Language" xml:space="preserve"><value>Language:</value></data>
+  <data name="Theme" xml:space="preserve"><value>Theme:</value></data>
+  <data name="FontSize" xml:space="preserve"><value>Font size:</value></data>
+  <data name="ShowTooltips" xml:space="preserve"><value>Show tooltips</value></data>
+  <data name="ShowStatusBar" xml:space="preserve"><value>Show status bar</value></data>
+  <data name="DefaultDateFormat" xml:space="preserve"><value>Default date format:</value></data>
+  <data name="DefaultCurrency" xml:space="preserve"><value>Default currency:</value></data>
+  <data name="NumberFormat" xml:space="preserve"><value>Number format:</value></data>
+  <data name="AutoSaveReports" xml:space="preserve"><value>Save reports automatically</value></data>
+  <data name="ShowChartsInReports" xml:space="preserve"><value>Show charts in reports</value></data>
+  <data name="SaveSettings" xml:space="preserve"><value>Save Settings</value></data>
+  <data name="EntryDate" xml:space="preserve"><value>Entry date</value></data>
+  <data name="FiscalPeriod" xml:space="preserve"><value>Fiscal period</value></data>
+  <data name="Source" xml:space="preserve"><value>Source</value></data>
+  <data name="Reference" xml:space="preserve"><value>Reference</value></data>
+  <data name="SaveJournalDraft" xml:space="preserve"><value>Save as Draft</value></data>
+  <data name="DebitSar" xml:space="preserve"><value>Debit (SAR)</value></data>
+  <data name="CreditSar" xml:space="preserve"><value>Credit (SAR)</value></data>
+  <data name="LineDescription" xml:space="preserve"><value>Line description</value></data>
+  <data name="JournalLines" xml:space="preserve"><value>Journal entry lines</value></data>
+  <data name="InvalidJournalEntry" xml:space="preserve"><value>Invalid Journal Entry</value></data>
+  <data name="SelectOpenPeriod" xml:space="preserve"><value>Select an open fiscal period.</value></data>
+  <data name="EnterJournalDescription" xml:space="preserve"><value>Enter the journal entry description.</value></data>
+  <data name="EnterJournalSource" xml:space="preserve"><value>Enter the journal entry source.</value></data>
+  <data name="SelectAccountEachLine" xml:space="preserve"><value>Select an account for every line.</value></data>
+  <data name="EnterValidAmounts" xml:space="preserve"><value>Enter valid numeric amounts.</value></data>
+  <data name="ApproveEntry" xml:space="preserve"><value>Approve Entry</value></data>
+  <data name="PostEntry" xml:space="preserve"><value>Post Entry</value></data>
+  <data name="ReverseEntry" xml:space="preserve"><value>Reverse Entry</value></data>
+  <data name="ReversalDate" xml:space="preserve"><value>Reversal date:</value></data>
+  <data name="AccountingManagement" xml:space="preserve"><value>Accounting Management</value></data>
+  <data name="AccountingTitle" xml:space="preserve"><value>Accounting Management — General Ledger and Foreign Currency</value></data>
+  <data name="OperationReason" xml:space="preserve"><value>Operation reason / approval reference:</value></data>
+  <data name="OperationFailedTitle" xml:space="preserve"><value>Operation Failed</value></data>
+  <data name="UnexpectedOperationFailure" xml:space="preserve"><value>The operation could not be completed. Check the log or contact your system administrator.</value></data>
+  <data name="Error.JournalNegativeAmount" xml:space="preserve"><value>Journal entry amounts cannot be negative.</value></data>
+  <data name="Error.JournalPrecision" xml:space="preserve"><value>Journal entry amounts cannot exceed two decimal places.</value></data>
+  <data name="Error.JournalDebitOrCredit" xml:space="preserve"><value>Each line must contain either a debit or a credit amount.</value></data>
+  <data name="Error.JournalMinimumLines" xml:space="preserve"><value>A journal entry requires at least two lines.</value></data>
+  <data name="Error.JournalUnbalanced" xml:space="preserve"><value>The journal entry is not balanced; total debit must equal total credit.</value></data>
+  <data name="SettingsSavedRestart" xml:space="preserve"><value>Settings were saved. The database path will apply after restart.</value></data>
+  <data name="SettingsSaveFailed" xml:space="preserve"><value>Settings could not be saved. Check the entered values and paths.</value></data>
+  <data name="DatabasePathRestart" xml:space="preserve"><value>The new database path will apply after the application restarts.</value></data>
+  <data name="ConnectionTestSucceeded" xml:space="preserve"><value>The database connection and integrity check succeeded.</value></data>
+  <data name="ConnectionTestFailed" xml:space="preserve"><value>The database connection or integrity check failed. Check the path and timeout.</value></data>
+  <data name="DatabaseCreated" xml:space="preserve"><value>A new database was created. Save the settings, then restart the application.</value></data>
+  <data name="DatabaseCreateFailed" xml:space="preserve"><value>The new database could not be created.</value></data>
+  <data name="BackupCreated" xml:space="preserve"><value>Backup created: {0}</value></data>
+  <data name="BackupCreateFailed" xml:space="preserve"><value>The backup could not be created. Check the path and permissions.</value></data>
+  <data name="MainWindowTitle" xml:space="preserve"><value>Fish Farm Management System - AquaFarm Pro</value></data>
+  <data name="MenuFile" xml:space="preserve"><value>File</value></data>
+  <data name="MenuManagement" xml:space="preserve"><value>Management</value></data>
+  <data name="MenuSales" xml:space="preserve"><value>Sales</value></data>
+  <data name="MenuCostsSuppliers" xml:space="preserve"><value>Costs and Suppliers</value></data>
+  <data name="MenuMaintenance" xml:space="preserve"><value>Maintenance</value></data>
+  <data name="MenuHumanResources" xml:space="preserve"><value>Human Resources</value></data>
+  <data name="MenuInventory" xml:space="preserve"><value>Inventory</value></data>
+  <data name="MenuPurchasing" xml:space="preserve"><value>Purchasing</value></data>
+  <data name="MenuFinancialAccounting" xml:space="preserve"><value>Financial Accounting</value></data>
+  <data name="MenuTaxInvoice" xml:space="preserve"><value>Tax and Tax Invoicing</value></data>
+  <data name="MenuReports" xml:space="preserve"><value>Reports</value></data>
+  <data name="MenuTools" xml:space="preserve"><value>🔧 Tools</value></data>
+  <data name="MenuHelp" xml:space="preserve"><value>Help</value></data>
+  <data name="Ponds" xml:space="preserve"><value>Ponds</value></data>
+  <data name="Cycles" xml:space="preserve"><value>Cycles</value></data>
+  <data name="Feeding" xml:space="preserve"><value>Feeding</value></data>
+  <data name="WaterQuality" xml:space="preserve"><value>Water Quality</value></data>
+  <data name="Mortality" xml:space="preserve"><value>Mortality</value></data>
+  <data name="LoginWindowTitle" xml:space="preserve"><value>AquaFarm Pro - Sign In</value></data>
+  <data name="LoginProductTitle" xml:space="preserve"><value>AquaFarm Pro&#10;Fish Farm Management System</value></data>
+  <data name="Username" xml:space="preserve"><value>Username:</value></data>
+  <data name="Password" xml:space="preserve"><value>Password:</value></data>
+  <data name="ShowPassword" xml:space="preserve"><value>Show password</value></data>
+  <data name="Login" xml:space="preserve"><value>Sign In</value></data>
+  <data name="Exit" xml:space="preserve"><value>Exit</value></data>
+  <data name="UsernameRequired" xml:space="preserve"><value>Enter your username.</value></data>
+  <data name="PasswordRequired" xml:space="preserve"><value>Enter your password.</value></data>
+  <data name="AccountLockedMinutes" xml:space="preserve"><value>🚫 This account is locked. Try again in {0} minute(s).</value></data>
+  <data name="Validating" xml:space="preserve"><value>Validating...</value></data>
+  <data name="InvalidCredentialsRemaining" xml:space="preserve"><value>The username or password is incorrect. Remaining attempts: {0}</value></data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>The username or password is incorrect.</value></data>
+  <data name="LoginConnectionFailed" xml:space="preserve"><value>Sign-in could not be completed. Check the connection and try again.</value></data>
+  <data name="BackupWarningTitle" xml:space="preserve"><value>Backup Warning</value></data>
+  <data name="BackupOverdueWarning" xml:space="preserve"><value>⚠️ No backup has been created for {0} day(s).&#10;&#10;Create a backup from File &gt; Backup.</value></data>
+  <data name="CriticalSecurityWarningTitle" xml:space="preserve"><value>Critical Security Warning</value></data>
+  <data name="DefaultPasswordWarning" xml:space="preserve"><value>⚠️ You are using the default password.&#10;&#10;It must be changed now to protect the system. Do you want to continue?</value></data>
+  <data name="BackupData" xml:space="preserve"><value>Backup</value></data>
+  <data name="RestoreData" xml:space="preserve"><value>Restore</value></data>
+  <data name="ExportData" xml:space="preserve"><value>Export Data</value></data>
+  <data name="ManagePonds" xml:space="preserve"><value>Manage Ponds</value></data>
+  <data name="ProductionCycles" xml:space="preserve"><value>Production Cycles</value></data>
+  <data name="RecordFeeding" xml:space="preserve"><value>Record Feeding</value></data>
+  <data name="MonitorWaterQuality" xml:space="preserve"><value>Monitor Water Quality</value></data>
+  <data name="MonitorHaccp" xml:space="preserve"><value>HACCP and Food Safety Monitoring</value></data>
+  <data name="RecordMortality" xml:space="preserve"><value>Record Mortality</value></data>
+  <data name="TreatmentRecords" xml:space="preserve"><value>Treatment Records</value></data>
+  <data name="EnvironmentalRecords" xml:space="preserve"><value>Environmental Traceability Records</value></data>
+  <data name="AnimalHealthRecords" xml:space="preserve"><value>Animal Health Records</value></data>
+  <data name="BatchRecords" xml:space="preserve"><value>Batch Records</value></data>
+  <data name="CertificationRecords" xml:space="preserve"><value>Certification Records</value></data>
+  <data name="StaffTrainingRecords" xml:space="preserve"><value>Staff and Training Records</value></data>
+  <data name="ManageCustomers" xml:space="preserve"><value>Manage Customers</value></data>
+  <data name="SalesOrders" xml:space="preserve"><value>Sales Orders</value></data>
+  <data name="Payments" xml:space="preserve"><value>Payments</value></data>
+  <data name="SalesReports" xml:space="preserve"><value>Sales Reports</value></data>
+  <data name="ManageSuppliers" xml:space="preserve"><value>Manage Suppliers</value></data>
+  <data name="RecordCosts" xml:space="preserve"><value>Record Costs</value></data>
+  <data name="ProductionCosting" xml:space="preserve"><value>Production, Mortality and Harvest Costing</value></data>
+  <data name="PaySupplierDues" xml:space="preserve"><value>Pay Supplier Dues</value></data>
+  <data name="CostAnalysisReports" xml:space="preserve"><value>Cost Analysis Reports</value></data>
+  <data name="ManageEquipment" xml:space="preserve"><value>Manage Equipment</value></data>
+  <data name="MaintenanceSchedules" xml:space="preserve"><value>Maintenance Schedules</value></data>
+  <data name="RecordMaintenance" xml:space="preserve"><value>Record Maintenance</value></data>
+  <data name="SpareParts" xml:space="preserve"><value>Spare Parts</value></data>
+  <data name="ManageEmployees" xml:space="preserve"><value>Manage Employees</value></data>
+  <data name="AttendanceRecords" xml:space="preserve"><value>Attendance Records</value></data>
+  <data name="ProcessPayroll" xml:space="preserve"><value>Process Payroll</value></data>
+  <data name="ManageLeave" xml:space="preserve"><value>Manage Leave</value></data>
+  <data name="HumanResourcesReports" xml:space="preserve"><value>Human Resources Reports</value></data>
+  <data name="ManageInventoryItems" xml:space="preserve"><value>Manage Inventory Items</value></data>
+  <data name="StockMovements" xml:space="preserve"><value>Stock Movements</value></data>
+  <data name="StockAdjustments" xml:space="preserve"><value>Stock Adjustments and Counts</value></data>
+  <data name="OperationalBatchTraceability" xml:space="preserve"><value>Operational Batch Traceability</value></data>
+  <data name="PurchaseOrders" xml:space="preserve"><value>Purchase Orders</value></data>
+  <data name="GoodsReceiving" xml:space="preserve"><value>Goods Receiving</value></data>
+  <data name="PurchaseReports" xml:space="preserve"><value>Purchase Reports</value></data>
+  <data name="InventoryLedgerReconciliation" xml:space="preserve"><value>Inventory to Ledger Reconciliation</value></data>
+  <data name="FinancialDashboard" xml:space="preserve"><value>Financial Dashboard</value></data>
+  <data name="IncomeStatement" xml:space="preserve"><value>Income Statement</value></data>
+  <data name="BalanceSheet" xml:space="preserve"><value>Balance Sheet</value></data>
+  <data name="CashFlowStatement" xml:space="preserve"><value>Cash Flow Statement</value></data>
+  <data name="TrialBalance" xml:space="preserve"><value>Trial Balance</value></data>
+  <data name="FixedAssets" xml:space="preserve"><value>Fixed Assets</value></data>
+  <data name="Depreciation" xml:space="preserve"><value>Depreciation</value></data>
+  <data name="TaxInvoice" xml:space="preserve"><value>Tax Invoice</value></data>
+  <data name="VatReturn" xml:space="preserve"><value>VAT Return</value></data>
+  <data name="VatReports" xml:space="preserve"><value>VAT Reports</value></data>
+  <data name="ZatcaIntegration" xml:space="preserve"><value>🔐 ZATCA Integration (Fatoora)</value></data>
+  <data name="PerformanceReport" xml:space="preserve"><value>Performance Report</value></data>
+  <data name="WaterQualityReport" xml:space="preserve"><value>Water Quality Report</value></data>
+  <data name="CostReport" xml:space="preserve"><value>Cost Report</value></data>
+  <data name="MortalityReport" xml:space="preserve"><value>Mortality Report</value></data>
+  <data name="TreatmentReport" xml:space="preserve"><value>Treatment Report</value></data>
+  <data name="FeedingReport" xml:space="preserve"><value>Feeding Report</value></data>
+  <data name="AnimalHealthReport" xml:space="preserve"><value>Animal Health Report</value></data>
+  <data name="ProductionReport" xml:space="preserve"><value>Production Report</value></data>
+  <data name="EnvironmentalReport" xml:space="preserve"><value>Environmental Report</value></data>
+  <data name="CertificationReport" xml:space="preserve"><value>Quality Certification Report</value></data>
+  <data name="PondPerformanceReport" xml:space="preserve"><value>Pond Performance Comparison</value></data>
+  <data name="InventoryReport" xml:space="preserve"><value>Inventory Report</value></data>
+  <data name="LogViewer" xml:space="preserve"><value>📝 Log Viewer</value></data>
+  <data name="UserManagement" xml:space="preserve"><value>👥 User Management</value></data>
+  <data name="BackupTool" xml:space="preserve"><value>💾 Backup</value></data>
+  <data name="SettingsTool" xml:space="preserve"><value>⚙️ Settings</value></data>
+  <data name="About" xml:space="preserve"><value>About</value></data>
+  <data name="Overview" xml:space="preserve"><value>Overview</value></data>
+  <data name="FiscalPeriods" xml:space="preserve"><value>Fiscal Periods</value></data>
+  <data name="CloseSelectedPeriod" xml:space="preserve"><value>Close Selected Period</value></data>
+  <data name="FiscalYears" xml:space="preserve"><value>Fiscal Years</value></data>
+  <data name="CreateOpeningBalances" xml:space="preserve"><value>Create Opening Balances</value></data>
+  <data name="RetainedEarningsAccount" xml:space="preserve"><value>Retained Earnings Account</value></data>
+  <data name="CreateClosingEntry" xml:space="preserve"><value>Create Closing Entry</value></data>
+  <data name="CloseFiscalYear" xml:space="preserve"><value>Close Fiscal Year</value></data>
+  <data name="NextYearName" xml:space="preserve"><value>Next Year Name</value></data>
+  <data name="Start" xml:space="preserve"><value>Start</value></data>
+  <data name="End" xml:space="preserve"><value>End</value></data>
+  <data name="OpenNextYear" xml:space="preserve"><value>Open Next Year</value></data>
+  <data name="Adjustments" xml:space="preserve"><value>Adjustments</value></data>
+  <data name="Period" xml:space="preserve"><value>Period</value></data>
+  <data name="AdjustmentType" xml:space="preserve"><value>Adjustment Type</value></data>
+  <data name="SupportingDocument" xml:space="preserve"><value>Supporting Document</value></data>
+  <data name="ScheduledReversal" xml:space="preserve"><value>Scheduled Reversal</value></data>
+  <data name="ReversalDateNoColon" xml:space="preserve"><value>Reversal Date</value></data>
+  <data name="CreateAdjustmentEntry" xml:space="preserve"><value>Create Adjustment Entry</value></data>
+  <data name="ReverseDueUntil" xml:space="preserve"><value>Reversals Due Through</value></data>
+  <data name="RunDueReversals" xml:space="preserve"><value>Run Due Reversals</value></data>
+  <data name="OperationalPosting" xml:space="preserve"><value>Operational Posting</value></data>
+  <data name="ApprovePurchaseReceiving" xml:space="preserve"><value>Approve Purchase Receiving</value></data>
+  <data name="ApproveAllAddStock" xml:space="preserve"><value>Approve and Add All Items to Stock</value></data>
+  <data name="PostInventoryCost" xml:space="preserve"><value>Post Inventory Cost</value></data>
+  <data name="AccountingPeriod" xml:space="preserve"><value>Accounting Period</value></data>
+  <data name="PostStockMovement" xml:space="preserve"><value>Post Stock Movement</value></data>
+  <data name="SettleVatReturns" xml:space="preserve"><value>Settle VAT Returns</value></data>
+  <data name="PostVatSettlement" xml:space="preserve"><value>Post VAT Return Settlement</value></data>
+  <data name="AccountingConfiguration" xml:space="preserve"><value>Accounting Configuration</value></data>
+  <data name="CreateLoadInitialMap" xml:space="preserve"><value>Create/Load Initial Map</value></data>
+  <data name="ApproveSelectedMap" xml:space="preserve"><value>Approve Selected Map</value></data>
+  <data name="ExchangeRates" xml:space="preserve"><value>Exchange Rates</value></data>
+  <data name="Currency" xml:space="preserve"><value>Currency</value></data>
+  <data name="Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Purpose" xml:space="preserve"><value>Purpose</value></data>
+  <data name="SarPerUnit" xml:space="preserve"><value>SAR per Unit</value></data>
+  <data name="OfficialSource" xml:space="preserve"><value>Official Source</value></data>
+  <data name="EvidenceReference" xml:space="preserve"><value>Evidence Reference</value></data>
+  <data name="SaveAsDraft" xml:space="preserve"><value>Save as Draft</value></data>
+  <data name="ApproveSelectedRate" xml:space="preserve"><value>Approve Selected Rate</value></data>
+  <data name="ForeignCurrencyItems" xml:space="preserve"><value>Foreign Currency Items</value></data>
+  <data name="PostedRecognitionLineId" xml:space="preserve"><value>Posted Recognition Line ID</value></data>
+  <data name="Type" xml:space="preserve"><value>Type</value></data>
+  <data name="RegisterMonetaryItem" xml:space="preserve"><value>Register Monetary Item</value></data>
+  <data name="SettlementDate" xml:space="preserve"><value>Settlement Date</value></data>
+  <data name="ForeignAmount" xml:space="preserve"><value>Foreign Amount</value></data>
+  <data name="TransactionRate" xml:space="preserve"><value>Transaction Rate</value></data>
+  <data name="CashAccount" xml:space="preserve"><value>Cash</value></data>
+  <data name="RealisedGain" xml:space="preserve"><value>Realised Gain</value></data>
+  <data name="RealisedLoss" xml:space="preserve"><value>Realised Loss</value></data>
+  <data name="SettleSelectedItem" xml:space="preserve"><value>Settle Selected Item</value></data>
+  <data name="ClosingPeriod" xml:space="preserve"><value>Closing Period</value></data>
+  <data name="RevaluationGain" xml:space="preserve"><value>Revaluation Gain</value></data>
+  <data name="RevaluationLoss" xml:space="preserve"><value>Revaluation Loss</value></data>
+  <data name="RevalueAllOpenItems" xml:space="preserve"><value>Revalue All Open Items</value></data>
+  <data name="SelectListValue" xml:space="preserve"><value>Select a value from the list.</value></data>
+  <data name="Enum.AccountingAdjustmentType.Accrual" xml:space="preserve"><value>Accrual</value></data>
+  <data name="Enum.AccountingAdjustmentType.Deferral" xml:space="preserve"><value>Deferral</value></data>
+  <data name="Enum.AccountingAdjustmentType.Reclassification" xml:space="preserve"><value>Reclassification</value></data>
+  <data name="Enum.AccountingAdjustmentType.Estimate" xml:space="preserve"><value>Estimate</value></data>
+  <data name="Enum.AccountingAdjustmentType.Correction" xml:space="preserve"><value>Correction</value></data>
+  <data name="Enum.AccountingAdjustmentType.Other" xml:space="preserve"><value>Other</value></data>
+  <data name="Enum.ExchangeRatePurpose.Transaction" xml:space="preserve"><value>Transaction</value></data>
+  <data name="Enum.ExchangeRatePurpose.Closing" xml:space="preserve"><value>Closing</value></data>
+  <data name="Enum.ForeignMonetaryItemKind.Asset" xml:space="preserve"><value>Asset</value></data>
+  <data name="Enum.ForeignMonetaryItemKind.Liability" xml:space="preserve"><value>Liability</value></data>
+  <data name="Enum.FiscalPeriodStatus.Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Enum.FiscalPeriodStatus.Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="Enum.JournalEntryStatus.Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Enum.JournalEntryStatus.Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="Enum.JournalEntryStatus.Posted" xml:space="preserve"><value>Posted</value></data>
+  <data name="Enum.JournalEntryStatus.Reversed" xml:space="preserve"><value>Reversed</value></data>
+  <data name="Enum.AccountingConfigurationStatus.Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Enum.AccountingConfigurationStatus.Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="Enum.AccountingConfigurationStatus.Retired" xml:space="preserve"><value>Retired</value></data>
+  <data name="Enum.ExchangeRateStatus.Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Enum.ExchangeRateStatus.Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="Enum.ExchangeRateStatus.Retired" xml:space="preserve"><value>Retired</value></data>
+  <data name="Enum.ForeignMonetaryItemStatus.Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Enum.ForeignMonetaryItemStatus.Settled" xml:space="preserve"><value>Settled</value></data>
+  <data name="Enum.VATReturnStatus.Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Enum.VATReturnStatus.UnderReview" xml:space="preserve"><value>Under Review</value></data>
+  <data name="Enum.VATReturnStatus.Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="Enum.VATReturnStatus.Submitted" xml:space="preserve"><value>Submitted</value></data>
+  <data name="Enum.VATReturnStatus.Paid" xml:space="preserve"><value>Paid</value></data>
+  <data name="Enum.VATReturnStatus.Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="Enum.VATReturnStatus.Cancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="Enum.StockMovementType.Purchase" xml:space="preserve"><value>Purchase</value></data>
+  <data name="Enum.StockMovementType.Sale" xml:space="preserve"><value>Sale</value></data>
+  <data name="Enum.StockMovementType.Production" xml:space="preserve"><value>Production</value></data>
+  <data name="Enum.StockMovementType.Consumption" xml:space="preserve"><value>Consumption</value></data>
+  <data name="Enum.StockMovementType.Transfer" xml:space="preserve"><value>Transfer</value></data>
+  <data name="Enum.StockMovementType.Adjustment" xml:space="preserve"><value>Adjustment</value></data>
+  <data name="Enum.StockMovementType.AdjustmentIncrease" xml:space="preserve"><value>Adjustment Increase</value></data>
+  <data name="Enum.StockMovementType.AdjustmentDecrease" xml:space="preserve"><value>Adjustment Decrease</value></data>
+  <data name="Enum.StockMovementType.Return" xml:space="preserve"><value>Return</value></data>
+  <data name="Enum.StockMovementType.Damage" xml:space="preserve"><value>Damage</value></data>
+  <data name="Enum.StockMovementType.Expiry" xml:space="preserve"><value>Expiry</value></data>
+  <data name="Enum.StockMovementType.Expired" xml:space="preserve"><value>Expired</value></data>
+  <data name="Enum.StockMovementType.Loss" xml:space="preserve"><value>Loss</value></data>
+  <data name="Enum.StockMovementType.Waste" xml:space="preserve"><value>Waste</value></data>
+  <data name="Enum.StockMovementType.Found" xml:space="preserve"><value>Found</value></data>
+  <data name="Enum.StockMovementType.Opening" xml:space="preserve"><value>Opening Balance</value></data>
+  <data name="Enum.StockMovementType.Closing" xml:space="preserve"><value>Closing Balance</value></data>
+  <data name="AccountingSummary" xml:space="preserve"><value>Accounting Core Status&#10;&#10;Draft entries: {0:N0}        Approved, unposted entries: {1:N0}        Posted entries: {2:N0}&#10;&#10;Open periods: {3:N0}        Approved exchange rates: {4:N0}&#10;&#10;Open foreign monetary items: {5:N0}        Items requiring closing follow-up: {6:N0}&#10;&#10;Functional and presentation currency: SAR</value></data>
+</root>

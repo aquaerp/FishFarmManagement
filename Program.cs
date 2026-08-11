@@ -22,6 +22,7 @@ namespace FishFarmManager
             // تهيئة نظام Logging أولاً
             LoggingService.Initialize();
 
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
@@ -38,6 +39,8 @@ namespace FishFarmManager
                 ConfigureServices(services);
 
                 using var serviceProvider = services.BuildServiceProvider();
+                var userSettings = serviceProvider.GetRequiredService<UserSettingsService>().Load();
+                LocalizationManager.SetCulture(userSettings.UserInterface.Language);
 
                 // إنشاء قاعدة البيانات إذا لم تكن موجودة
                 using (var scope = serviceProvider.CreateScope())
@@ -116,6 +119,7 @@ namespace FishFarmManager
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+                .AddJsonFile(RuntimePaths.GetUserSettingsPath(), optional: true, reloadOnChange: false)
                 .AddEnvironmentVariables("AQUAFARM_")
                 .Build();
 
@@ -127,6 +131,7 @@ namespace FishFarmManager
 
             services.AddSingleton<IConfiguration>(configuration);
             services.AddSingleton(startupValidation);
+            services.AddSingleton<UserSettingsService>();
 
             // إضافة DbContext - IMPORTANT: Use Transient to avoid disposed context errors
             // Each form gets its own context instance that it can safely dispose

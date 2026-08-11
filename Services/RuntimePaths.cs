@@ -27,6 +27,8 @@ public static class RuntimePaths
         }
 
         builder.DataSource = Path.GetFullPath(dataSource);
+        builder.DefaultTimeout = Math.Clamp(
+            configuration.GetValue("Database:ConnectionTimeoutSeconds", 30), 5, 300);
         return builder.ConnectionString;
     }
 
@@ -56,5 +58,9 @@ public static class RuntimePaths
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "FishFarmManager");
     }
-}
 
+    public static string GetUserSettingsPath()
+    {
+        return Path.Combine(GetApplicationDataDirectory(), "user-settings.json");
+    }
+}

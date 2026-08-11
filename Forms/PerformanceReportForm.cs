@@ -79,7 +79,8 @@ namespace FishFarmManager.Forms
                     c.SurvivalRate,
                     c.FCR,
                     c.ADG,
-                    c.TotalHarvestWeight
+                    c.TotalHarvestWeight,
+                    c.TotalCost
                 })
                 .ToList();
             _performanceGrid.DataSource = completedCycles;
@@ -92,7 +93,12 @@ namespace FishFarmManager.Forms
             var avgFCR = cyclesWithFCR.Any() ? cyclesWithFCR.Average(c => c.FCR.GetValueOrDefault()) : 0;
             var avgADG = cyclesWithADG.Any() ? cyclesWithADG.Average(c => c.ADG.GetValueOrDefault()) : 0;
             var totalProduction = completedCycles.Sum(c => c.TotalHarvestWeight ?? 0);
-            var avgProfit = 0.0; // TODO: Calculate profitability when cost data is available
+            var totalCost = completedCycles.Sum(c => c.TotalCost ?? 0m);
+            var totalRevenue = _context.SalesOrders
+                .Where(order => order.Status != Models.SalesOrderStatus.Cancelled)
+                .Sum(order => order.GrandTotal);
+            var profit = totalRevenue - totalCost;
+            var profitMargin = totalRevenue > 0m ? profit / totalRevenue * 100m : 0m;
 
             _statsTextBox.Text = $"إحصائيات الأداء:\n\n" +
                 $"عدد الدورات المكتملة: {completedCycles.Count}\n" +
@@ -100,7 +106,9 @@ namespace FishFarmManager.Forms
                 $"متوسط معدل التحويل الغذائي: {avgFCR:F2}\n" +
                 $"متوسط النمو اليومي: {avgADG:F2} جم/يوم\n" +
                 $"إجمالي الإنتاج: {totalProduction:F1} كجم\n" +
-                $"متوسط الربحية: {avgProfit:F2}%";
+                $"إجمالي تكاليف الإنتاج: {totalCost:N2}\n" +
+                $"إجمالي المبيعات المسجلة: {totalRevenue:N2}\n" +
+                $"هامش الربحية: {profitMargin:F2}%";
         }
     }
 }

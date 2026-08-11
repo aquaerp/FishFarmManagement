@@ -32,6 +32,9 @@ namespace FishFarmManager.Forms
             InitializeComponent();
             SetupForm();
             ApplyTheme();
+            BindLocalizedResources();
+            LocalizationManager.CultureChanged += LocalizationManager_CultureChanged;
+            ApplyLocalization();
         }
 
         private void InitializeComponent()
@@ -42,11 +45,10 @@ namespace FishFarmManager.Forms
             this.ClientSize = new Size(450, 550);
             this.Text = "AquaFarm Pro - تسجيل الدخول";
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.AutoScaleMode = AutoScaleMode.Dpi;
             this.StartPosition = FormStartPosition.CenterScreen;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.RightToLeft = RightToLeft.Yes;
-            this.RightToLeftLayout = true;
             this.KeyPreview = true;
 
             this.ResumeLayout(false);
@@ -149,6 +151,7 @@ namespace FishFarmManager.Forms
                 Font = new Font("Cairo", 9),
                 TextAlign = ContentAlignment.MiddleRight
             };
+            _showPasswordCheckBox.AutoSize = true;
             _showPasswordCheckBox.CheckedChanged += ShowPasswordCheckBox_CheckedChanged;
             this.Controls.Add(_showPasswordCheckBox);
 
@@ -173,6 +176,9 @@ namespace FishFarmManager.Forms
                 Font = new Font("Cairo", 10, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
+            _loginButton.AutoSize = true;
+            _loginButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            _loginButton.MinimumSize = new Size(170, 40);
             _loginButton.Click += LoginButton_Click;
             this.Controls.Add(_loginButton);
 
@@ -185,6 +191,9 @@ namespace FishFarmManager.Forms
                 Font = new Font("Cairo", 10),
                 Cursor = Cursors.Hand
             };
+            _exitButton.AutoSize = true;
+            _exitButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            _exitButton.MinimumSize = new Size(170, 40);
             _exitButton.Click += ExitButton_Click;
             this.Controls.Add(_exitButton);
 
@@ -192,6 +201,13 @@ namespace FishFarmManager.Forms
             this.KeyDown += LoginForm_KeyDown;
             _usernameTextBox.KeyDown += TextBox_KeyDown;
             _passwordTextBox.KeyDown += TextBox_KeyDown;
+            _usernameTextBox.TabIndex = 0;
+            _passwordTextBox.TabIndex = 1;
+            _showPasswordCheckBox.TabIndex = 2;
+            _loginButton.TabIndex = 3;
+            _exitButton.TabIndex = 4;
+            _logoPictureBox.TabStop = false;
+            AcceptButton = _loginButton;
         }
 
         private void ApplyTheme()
@@ -214,6 +230,42 @@ namespace FishFarmManager.Forms
             // TextBox borders
             _usernameTextBox.BorderStyle = BorderStyle.FixedSingle;
             _passwordTextBox.BorderStyle = BorderStyle.FixedSingle;
+        }
+
+        private void BindLocalizedResources()
+        {
+            LocalizationManager.Bind(this, "LoginWindowTitle");
+            LocalizationManager.Bind(_titleLabel, "LoginProductTitle");
+            LocalizationManager.Bind(_usernameLabel, "Username");
+            LocalizationManager.Bind(_passwordLabel, "Password");
+            LocalizationManager.Bind(_showPasswordCheckBox, "ShowPassword");
+            LocalizationManager.Bind(_loginButton, "Login");
+            LocalizationManager.Bind(_exitButton, "Exit");
+            _usernameTextBox.AccessibleName = LocalizationManager.Get("Username");
+            _passwordTextBox.AccessibleName = LocalizationManager.Get("Password");
+        }
+
+        private void LocalizationManager_CultureChanged(object? sender, EventArgs e) => ApplyLocalization();
+
+        private void ApplyLocalization()
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(ApplyLocalization));
+                return;
+            }
+
+            SuspendLayout();
+            ThemeManager.ApplyCultureDirection(this);
+            LocalizationManager.ApplyResources(this);
+            var isRightToLeft = LocalizationManager.CurrentCulture.TextInfo.IsRightToLeft;
+            _loginButton.Left = isRightToLeft ? 230 : 50;
+            _exitButton.Left = isRightToLeft ? 50 : 230;
+            _showPasswordCheckBox.Left = isRightToLeft ? 250 : 50;
+            _usernameTextBox.AccessibleName = LocalizationManager.Get("Username");
+            _passwordTextBox.AccessibleName = LocalizationManager.Get("Password");
+            ResumeLayout(true);
         }
 
         private void ShowPasswordCheckBox_CheckedChanged(object? sender, EventArgs e)
@@ -255,14 +307,14 @@ namespace FishFarmManager.Forms
 
             if (string.IsNullOrWhiteSpace(username))
             {
-                ShowError("الرجاء إدخال اسم المستخدم");
+                ShowError(LocalizationManager.Get("UsernameRequired"));
                 _usernameTextBox.Focus();
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(password))
             {
-                ShowError("الرجاء إدخال كلمة المرور");
+                ShowError(LocalizationManager.Get("PasswordRequired"));
                 _passwordTextBox.Focus();
                 return;
             }
@@ -272,7 +324,7 @@ namespace FishFarmManager.Forms
             if (unlockTime.HasValue && unlockTime.Value > DateTime.Now)
             {
                 var minutesRemaining = (int)(unlockTime.Value - DateTime.Now).TotalMinutes + 1;
-                ShowError($"🚫 الحساب مقفل. المحاولة مرة أخرى بعد {minutesRemaining} دقيقة");
+                ShowError(LocalizationManager.Format("AccountLockedMinutes", minutesRemaining));
                 LoggingService.LogWarning($"محاولة تسجيل دخول لحساب مقفل: {username}");
                 return;
             }
@@ -286,7 +338,7 @@ namespace FishFarmManager.Forms
 
             // Disable login button to prevent multiple clicks
             _loginButton.Enabled = false;
-            _loginButton.Text = "جاري التحقق...";
+            _loginButton.Text = LocalizationManager.Get("Validating");
 
             try
             {
@@ -310,11 +362,11 @@ namespace FishFarmManager.Forms
                     var remaining = AuthenticationService.GetRemainingAttempts(username);
                     if (remaining > 0)
                     {
-                        ShowError($"اسم المستخدم أو كلمة المرور غير صحيحة. المحاولات المتبقية: {remaining}");
+                        ShowError(LocalizationManager.Format("InvalidCredentialsRemaining", remaining));
                     }
                     else
                     {
-                        ShowError("اسم المستخدم أو كلمة المرور غير صحيحة");
+                        ShowError(LocalizationManager.Get("InvalidCredentials"));
                     }
                     
                     _passwordTextBox.Clear();
@@ -323,13 +375,13 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                ShowError($"خطأ في الاتصال: {ex.Message}");
+                ShowError(LocalizationManager.Get("LoginConnectionFailed"));
                 LoggingService.LogError($"خطأ في تسجيل الدخول: {ex.Message}");
             }
             finally
             {
                 _loginButton.Enabled = true;
-                _loginButton.Text = "تسجيل الدخول";
+                LocalizationManager.ApplyResources(_loginButton);
             }
         }
 
@@ -344,9 +396,8 @@ namespace FishFarmManager.Forms
                 {
                     var days = BackupService.GetDaysSinceLastBackup();
                     MessageBox.Show(
-                        $"⚠️ تنبيه: لم يتم عمل نسخة احتياطية منذ {days} يوم!\n\n" +
-                        "يُنصح بعمل نسخة احتياطية من القائمة: ملف > نسخ احتياطي",
-                        "تحذير النسخ الاحتياطي",
+                        LocalizationManager.Format("BackupOverdueWarning", days),
+                        LocalizationManager.Get("BackupWarningTitle"),
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning
                     );
@@ -370,11 +421,8 @@ namespace FishFarmManager.Forms
                     AuthenticationService.CurrentUser?.UpdatedAt == null)
                 {
                     var result = MessageBox.Show(
-                        "⚠️ تحذير أمني!\n\n" +
-                        "أنت تستخدم كلمة المرور الافتراضية.\n" +
-                        "لأسباب أمنية، يجب تغيير كلمة المرور الآن.\n\n" +
-                        "هل تريد تغيير كلمة المرور الآن؟",
-                        "تحذير أمني حرج",
+                        LocalizationManager.Get("DefaultPasswordWarning"),
+                        LocalizationManager.Get("CriticalSecurityWarningTitle"),
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Warning
                     );
@@ -447,6 +495,13 @@ namespace FishFarmManager.Forms
                 };
                 graphics.FillPolygon(fishBrush, tail);
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                LocalizationManager.CultureChanged -= LocalizationManager_CultureChanged;
+            base.Dispose(disposing);
         }
     }
 }

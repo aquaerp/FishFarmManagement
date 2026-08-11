@@ -25,8 +25,8 @@ namespace FishFarmManager.Forms
         private void InitializeBaseForm()
         {
             // تطبيق الإعدادات الأساسية للهوية البصرية
-            this.RightToLeft = RightToLeft.Yes;
-            this.RightToLeftLayout = true;
+            ThemeManager.ApplyCultureDirection(this);
+            this.AutoScaleMode = AutoScaleMode.Dpi;
             this.BackColor = ThemeManager.NeutralLightGray;
             this.Font = ThemeManager.MainFont;
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -34,6 +34,34 @@ namespace FishFarmManager.Forms
 
             // تطبيق الثيم عند تحميل النموذج
             this.Load += AquaFarmBaseForm_Load;
+            LocalizationManager.CultureChanged += LocalizationManager_CultureChanged;
+        }
+
+        protected virtual void ApplyLocalizedResources()
+        {
+        }
+
+        private void LocalizationManager_CultureChanged(object? sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => LocalizationManager_CultureChanged(sender, e)));
+                return;
+            }
+
+            SuspendLayout();
+            try
+            {
+                ThemeManager.ApplyCultureDirection(this);
+                LocalizationManager.ApplyResources(this);
+                ApplyLocalizedResources();
+                PerformLayout();
+            }
+            finally
+            {
+                ResumeLayout(true);
+            }
         }
 
         /// <summary>
@@ -44,11 +72,32 @@ namespace FishFarmManager.Forms
             try
             {
                 ThemeManager.ApplyTheme(this);
+                LocalizationManager.ApplyResources(this);
+                ApplyKeyboardAndAccessibilityDefaults(this);
                 LoggingService.LogInfo($"تم تحميل النموذج: {this.Text}");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"خطأ في تطبيق الثيم: {ex.Message}");
+            }
+        }
+
+        private static void ApplyKeyboardAndAccessibilityDefaults(Control parent)
+        {
+            var ordered = parent.Controls.Cast<Control>()
+                .OrderBy(control => control.Top)
+                .ThenByDescending(control => control.Left)
+                .ToArray();
+            for (var index = 0; index < ordered.Length; index++)
+            {
+                var control = ordered[index];
+                control.TabIndex = index;
+                if (string.IsNullOrWhiteSpace(control.AccessibleName)
+                    && control is Button or CheckBox or RadioButton or GroupBox or TabControl)
+                {
+                    control.AccessibleName = control.Text;
+                }
+                if (control.HasChildren) ApplyKeyboardAndAccessibilityDefaults(control);
             }
         }
 
@@ -251,7 +300,7 @@ namespace FishFarmManager.Forms
         /// <summary>
         /// عرض رسالة نجاح
         /// </summary>
-        protected void ShowSuccess(string message, string title = "نجح")
+        protected void ShowSuccess(string message, string? title = null)
         {
             ThemeManager.ShowSuccess(message, title);
         }
@@ -259,7 +308,7 @@ namespace FishFarmManager.Forms
         /// <summary>
         /// عرض رسالة خطأ
         /// </summary>
-        protected void ShowError(string message, string title = "خطأ")
+        protected void ShowError(string message, string? title = null)
         {
             ThemeManager.ShowError(message, title);
         }
@@ -267,7 +316,7 @@ namespace FishFarmManager.Forms
         /// <summary>
         /// عرض رسالة تحذير
         /// </summary>
-        protected void ShowWarning(string message, string title = "تحذير")
+        protected void ShowWarning(string message, string? title = null)
         {
             ThemeManager.ShowWarning(message, title);
         }
@@ -275,7 +324,7 @@ namespace FishFarmManager.Forms
         /// <summary>
         /// عرض رسالة معلومات
         /// </summary>
-        protected void ShowInfo(string message, string title = "معلومات")
+        protected void ShowInfo(string message, string? title = null)
         {
             ThemeManager.ShowInfo(message, title);
         }
@@ -283,7 +332,7 @@ namespace FishFarmManager.Forms
         /// <summary>
         /// طلب تأكيد من المستخدم
         /// </summary>
-        protected bool Confirm(string message, string title = "تأكيد")
+        protected bool Confirm(string message, string? title = null)
         {
             return ThemeManager.Confirm(message, title);
         }
@@ -299,7 +348,7 @@ namespace FishFarmManager.Forms
         {
             if (string.IsNullOrWhiteSpace(textBox.Text))
             {
-                ShowWarning($"الرجاء إدخال {fieldName}");
+                ShowWarning(LocalizationManager.Format("RequiredField", fieldName));
                 textBox.Focus();
                 return false;
             }
@@ -311,7 +360,7 @@ namespace FishFarmManager.Forms
         /// </summary>
         protected bool ValidateNumeric(TextBox textBox, string fieldName, out decimal value)
         {
-            if (!decimal.TryParse(textBox.Text, out value))
+            if (!CultureFormatter.TryParseDecimal(textBox.Text, out value))
             {
                 ShowWarning($"{fieldName} يجب أن يكون رقماً صحيحاً");
                 textBox.Focus();
@@ -346,7 +395,7 @@ namespace FishFarmManager.Forms
         /// </summary>
         protected string FormatCurrency(decimal amount)
         {
-            return $"{amount:N2} ريال";
+            return CultureFormatter.FormatSar(amount);
         }
 
         /// <summary>
@@ -354,7 +403,7 @@ namespace FishFarmManager.Forms
         /// </summary>
         protected string FormatDate(DateTime date)
         {
-            return date.ToString("dd/MM/yyyy");
+            return CultureFormatter.FormatDate(date);
         }
 
         /// <summary>
@@ -362,7 +411,7 @@ namespace FishFarmManager.Forms
         /// </summary>
         protected string FormatDateTime(DateTime dateTime)
         {
-            return dateTime.ToString("dd/MM/yyyy HH:mm");
+            return CultureFormatter.FormatDateTime(dateTime);
         }
 
         #endregion
@@ -384,6 +433,7 @@ namespace FishFarmManager.Forms
         {
             if (disposing)
             {
+                LocalizationManager.CultureChanged -= LocalizationManager_CultureChanged;
                 try
                 {
                     DisposeResources();

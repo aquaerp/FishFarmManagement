@@ -28,15 +28,54 @@ namespace FishFarmManager.Services
 
         public static void ApplyTheme(Form form)
         {
-            // RTL + base font
-            form.RightToLeft = RightToLeft.Yes;
-            form.RightToLeftLayout = true;
+            ApplyCultureDirection(form);
             form.Font = CreatePreferredFont(10f);
             form.BackColor = PureWhite;
 
             foreach (Control c in form.Controls)
             {
                 ApplyThemeToControlTree(c);
+            }
+        }
+
+        public static void ApplyCultureDirection(Form form)
+        {
+            var isRightToLeft = LocalizationManager.CurrentCulture.TextInfo.IsRightToLeft;
+            form.RightToLeft = isRightToLeft ? RightToLeft.Yes : RightToLeft.No;
+            form.RightToLeftLayout = isRightToLeft;
+            ApplyDirectionToControlTree(form, isRightToLeft);
+        }
+
+        private static void ApplyDirectionToControlTree(Control control, bool isRightToLeft)
+        {
+            control.RightToLeft = isRightToLeft ? RightToLeft.Yes : RightToLeft.No;
+
+            switch (control)
+            {
+                case TextBox textBox:
+                    textBox.TextAlign = isRightToLeft
+                        ? HorizontalAlignment.Right
+                        : HorizontalAlignment.Left;
+                    break;
+                case Label label when label.TextAlign == ContentAlignment.MiddleRight
+                                      || label.TextAlign == ContentAlignment.MiddleLeft:
+                    label.TextAlign = isRightToLeft
+                        ? ContentAlignment.MiddleRight
+                        : ContentAlignment.MiddleLeft;
+                    break;
+                case ToolStrip toolStrip:
+                    toolStrip.RightToLeft = isRightToLeft ? RightToLeft.Yes : RightToLeft.No;
+                    break;
+                case FlowLayoutPanel flow:
+                    flow.FlowDirection = isRightToLeft
+                        ? FlowDirection.RightToLeft
+                        : FlowDirection.LeftToRight;
+                    break;
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                ApplyDirectionToControlTree(child, isRightToLeft);
             }
         }
 
@@ -68,7 +107,7 @@ namespace FishFarmManager.Services
                     }
                     break;
                 case Button btn:
-                    StylePrimaryButton(btn);
+                    EnsureButtonLayout(btn);
                     break;
                 case Panel panel:
                     if (panel.Name?.Contains("DashboardPanel", StringComparison.OrdinalIgnoreCase) == true)
@@ -100,6 +139,7 @@ namespace FishFarmManager.Services
             btn.ForeColor = PureWhite;
             btn.Padding = new Padding(8, 4, 8, 4);
             btn.Font = CreatePreferredFont(9.5f, FontStyle.Bold);
+            EnsureButtonLayout(btn);
         }
 
         public static void StyleSecondaryButton(Button btn)
@@ -110,6 +150,18 @@ namespace FishFarmManager.Services
             btn.ForeColor = PureWhite;
             btn.Padding = new Padding(8, 4, 8, 4);
             btn.Font = CreatePreferredFont(9.5f, FontStyle.Bold);
+            EnsureButtonLayout(btn);
+        }
+
+        private static void EnsureButtonLayout(Button btn)
+        {
+            btn.AutoSize = true;
+            btn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            btn.MinimumSize = new Size(120, 40);
+            btn.Padding = new Padding(16, 6, 16, 6);
+            btn.TextAlign = ContentAlignment.MiddleCenter;
+            btn.UseCompatibleTextRendering = false;
+            btn.AccessibleName ??= btn.Text;
         }
 
         public static void StyleGrid(DataGridView grid)
@@ -129,7 +181,7 @@ namespace FishFarmManager.Services
         private static Font CreatePreferredFont(float size, FontStyle style = FontStyle.Regular)
         {
             // Try preferred fonts; fall back to Cairo for Arabic, then Segoe UI
-            string[] preferred = new[] { "Poppins", "Open Sans", "Cairo", "Segoe UI" };
+            string[] preferred = new[] { "Segoe UI", "Tahoma", "Cairo", "Arial" };
             foreach (var name in preferred)
             {
                 try
@@ -205,41 +257,45 @@ namespace FishFarmManager.Services
         /// <summary>
         /// عرض رسالة نجاح
         /// </summary>
-        public static void ShowSuccess(string message, string title = "نجح")
+        public static void ShowSuccess(string message, string? title = null)
         {
-            MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(message, title ?? LocalizationManager.Get("Success"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         /// <summary>
         /// عرض رسالة خطأ
         /// </summary>
-        public static void ShowError(string message, string title = "خطأ")
+        public static void ShowError(string message, string? title = null)
         {
-            MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(message, title ?? LocalizationManager.Get("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         /// <summary>
         /// عرض رسالة تحذير
         /// </summary>
-        public static void ShowWarning(string message, string title = "تحذير")
+        public static void ShowWarning(string message, string? title = null)
         {
-            MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(message, title ?? LocalizationManager.Get("Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         /// <summary>
         /// عرض رسالة معلومات
         /// </summary>
-        public static void ShowInfo(string message, string title = "معلومات")
+        public static void ShowInfo(string message, string? title = null)
         {
-            MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(message, title ?? LocalizationManager.Get("Information"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         /// <summary>
         /// طلب تأكيد
         /// </summary>
-        public static bool Confirm(string message, string title = "تأكيد")
+        public static bool Confirm(string message, string? title = null)
         {
-            return MessageBox.Show(message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            return MessageBox.Show(
+                message,
+                title ?? LocalizationManager.Get("Confirmation"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) == DialogResult.Yes;
         }
         
         #endregion
@@ -248,7 +304,7 @@ namespace FishFarmManager.Services
         
         public static Button CreatePrimaryButton(string text)
         {
-            return new Button
+            var button = new Button
             {
                 Text = text,
                 BackColor = PrimaryDeepBlue,
@@ -258,11 +314,13 @@ namespace FishFarmManager.Services
                 FlatAppearance = { BorderSize = 0 },
                 UseVisualStyleBackColor = false
             };
+            EnsureButtonLayout(button);
+            return button;
         }
         
         public static Button CreateSuccessButton(string text)
         {
-            return new Button
+            var button = new Button
             {
                 Text = text,
                 BackColor = SuccessGreen,
@@ -272,11 +330,13 @@ namespace FishFarmManager.Services
                 FlatAppearance = { BorderSize = 0 },
                 UseVisualStyleBackColor = false
             };
+            EnsureButtonLayout(button);
+            return button;
         }
         
         public static Button CreateSecondaryButton(string text)
         {
-            return new Button
+            var button = new Button
             {
                 Text = text,
                 BackColor = SecondarySkyBlue,
@@ -286,11 +346,13 @@ namespace FishFarmManager.Services
                 FlatAppearance = { BorderSize = 0 },
                 UseVisualStyleBackColor = false
             };
+            EnsureButtonLayout(button);
+            return button;
         }
         
         public static Button CreateWarningButton(string text)
         {
-            return new Button
+            var button = new Button
             {
                 Text = text,
                 BackColor = WarningAmber,
@@ -300,11 +362,13 @@ namespace FishFarmManager.Services
                 FlatAppearance = { BorderSize = 0 },
                 UseVisualStyleBackColor = false
             };
+            EnsureButtonLayout(button);
+            return button;
         }
         
         public static Button CreateErrorButton(string text)
         {
-            return new Button
+            var button = new Button
             {
                 Text = text,
                 BackColor = ErrorRed,
@@ -314,6 +378,8 @@ namespace FishFarmManager.Services
                 FlatAppearance = { BorderSize = 0 },
                 UseVisualStyleBackColor = false
             };
+            EnsureButtonLayout(button);
+            return button;
         }
         
         #endregion

@@ -37,7 +37,13 @@ namespace FishFarmManager.Forms
             CheckAlerts();
             _ = CheckForUpdatesAsync();
             // Apply AquaFarm Pro theme
-            try { ThemeManager.ApplyTheme(this); } catch { }
+            try
+            {
+                ThemeManager.ApplyTheme(this);
+                LocalizationManager.ApplyResources(this);
+            }
+            catch { }
+            LocalizationManager.CultureChanged += LocalizationManager_CultureChanged;
             
             // Register form closing event
             this.FormClosing += MainForm_FormClosing;
@@ -47,6 +53,7 @@ namespace FishFarmManager.Forms
         {
             try
             {
+                LocalizationManager.CultureChanged -= LocalizationManager_CultureChanged;
                 // Cancel any pending async operations
                 _cancellationTokenSource?.Cancel();
                 
@@ -106,12 +113,14 @@ namespace FishFarmManager.Forms
             this.SuspendLayout();
             
             // إعداد النافذة الرئيسية
-            this.Text = "نظام إدارة مزرعة الأسماك - AquaFarm Pro";
+            LocalizationManager.Bind(this, "MainWindowTitle");
             this.Size = new Size(1200, 800);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.WindowState = FormWindowState.Maximized;
-            this.RightToLeft = RightToLeft.Yes;
-            this.RightToLeftLayout = true;
+            this.RightToLeft = LocalizationManager.CurrentCulture.TextInfo.IsRightToLeft
+                ? RightToLeft.Yes
+                : RightToLeft.No;
+            this.RightToLeftLayout = LocalizationManager.CurrentCulture.TextInfo.IsRightToLeft;
             try { this.Font = new Font("Cairo", 10F, FontStyle.Regular); } catch { }
             
             // إضافة أيقونة التطبيق
@@ -148,6 +157,7 @@ namespace FishFarmManager.Forms
             
             // قائمة الملف
             var fileMenu = new ToolStripMenuItem("ملف");
+            LocalizationManager.Bind(fileMenu, "MenuFile");
             fileMenu.DropDownItems.Add("نسخ احتياطي", null, BackupData_Click);
             fileMenu.DropDownItems.Add("استعادة", null, RestoreData_Click);
             fileMenu.DropDownItems.Add("تصدير البيانات", null, ExportData_Click);
@@ -156,6 +166,7 @@ namespace FishFarmManager.Forms
             
             // قائمة الإدارة
             var managementMenu = new ToolStripMenuItem("الإدارة");
+            LocalizationManager.Bind(managementMenu, "MenuManagement");
             managementMenu.DropDownItems.Add("إدارة الأحواض", null, ManagePonds_Click);
             managementMenu.DropDownItems.Add("الدورات الإنتاجية", null, ManageCycles_Click);
             managementMenu.DropDownItems.Add("تسجيل التغذية", null, RecordFeeding_Click);
@@ -172,6 +183,7 @@ namespace FishFarmManager.Forms
             
             // قائمة المبيعات
             var salesMenu = new ToolStripMenuItem("المبيعات");
+            LocalizationManager.Bind(salesMenu, "MenuSales");
             salesMenu.DropDownItems.Add("إدارة العملاء", null, ManageCustomers_Click);
             salesMenu.DropDownItems.Add("أوامر المبيعات", null, ManageSalesOrders_Click);
             salesMenu.DropDownItems.Add("المدفوعات", null, ManagePayments_Click);
@@ -180,6 +192,7 @@ namespace FishFarmManager.Forms
             
             // قائمة التكاليف والموردين
             var costMenu = new ToolStripMenuItem("التكاليف والموردين");
+            LocalizationManager.Bind(costMenu, "MenuCostsSuppliers");
             costMenu.DropDownItems.Add("إدارة الموردين", null, ManageSuppliers_Click);
             costMenu.DropDownItems.Add("تسجيل التكاليف", null, RecordCosts_Click);
             costMenu.DropDownItems.Add("تكلفة الإنتاج والنفوق والحصاد", null, ProductionCosting_Click);
@@ -189,6 +202,7 @@ namespace FishFarmManager.Forms
             
             // قائمة الصيانة
             var maintenanceMenu = new ToolStripMenuItem("الصيانة");
+            LocalizationManager.Bind(maintenanceMenu, "MenuMaintenance");
             maintenanceMenu.DropDownItems.Add("إدارة المعدات", null, ManageEquipment_Click);
             maintenanceMenu.DropDownItems.Add("جدولة الصيانة", null, ManageSchedules_Click);
             maintenanceMenu.DropDownItems.Add("تسجيل الصيانة", null, RecordMaintenance_Click);
@@ -196,6 +210,7 @@ namespace FishFarmManager.Forms
             
             // قائمة الموارد البشرية
             var hrMenu = new ToolStripMenuItem("الموارد البشرية");
+            LocalizationManager.Bind(hrMenu, "MenuHumanResources");
             hrMenu.DropDownItems.Add("إدارة الموظفين", null, ManageEmployees_Click);
             hrMenu.DropDownItems.Add("تسجيل الحضور", null, AttendanceRecord_Click);
             hrMenu.DropDownItems.Add("معالجة الرواتب", null, ProcessSalaries_Click);
@@ -205,6 +220,7 @@ namespace FishFarmManager.Forms
             
             // قائمة المخزون
             var inventoryMenu = new ToolStripMenuItem("المخزون");
+            LocalizationManager.Bind(inventoryMenu, "MenuInventory");
             inventoryMenu.DropDownItems.Add("إدارة بنود المخزون", null, ManageInventoryItems_Click);
             inventoryMenu.DropDownItems.Add("حركات المخزون", null, ManageStockMovements_Click);
             inventoryMenu.DropDownItems.Add("تعديلات المخزون والجرد", null, ManageStockAdjustments_Click);
@@ -212,6 +228,7 @@ namespace FishFarmManager.Forms
             
             // قائمة المشتريات
             var purchasingMenu = new ToolStripMenuItem("المشتريات");
+            LocalizationManager.Bind(purchasingMenu, "MenuPurchasing");
             purchasingMenu.DropDownItems.Add("أوامر الشراء", null, ManagePurchaseOrders_Click);
             purchasingMenu.DropDownItems.Add("استلام البضائع", null, ManagePurchaseReceiving_Click);
             purchasingMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -219,6 +236,7 @@ namespace FishFarmManager.Forms
             
             // قائمة المحاسبة المالية
             var accountingMenu = new ToolStripMenuItem("المحاسبة المالية");
+            LocalizationManager.Bind(accountingMenu, "MenuFinancialAccounting");
             accountingMenu.DropDownItems.Add("إدارة المحاسبة", null, AccountingManagement_Click);
             accountingMenu.DropDownItems.Add("مطابقة المخزون مع الأستاذ", null, InventoryReconciliation_Click);
             accountingMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -233,6 +251,7 @@ namespace FishFarmManager.Forms
             
             // قائمة الضرائب والفاتورة الضريبية
             var taxMenu = new ToolStripMenuItem("الضرائب والفاتورة الضريبية");
+            LocalizationManager.Bind(taxMenu, "MenuTaxInvoice");
             taxMenu.DropDownItems.Add("الفاتورة الضريبية", null, ManageTaxInvoices_Click);
             taxMenu.DropDownItems.Add("إقرار ضريبة القيمة المضافة", null, ManageVATReturns_Click);
             taxMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -242,6 +261,7 @@ namespace FishFarmManager.Forms
 
             // قائمة التقارير
             var reportsMenu = new ToolStripMenuItem("التقارير");
+            LocalizationManager.Bind(reportsMenu, "MenuReports");
             reportsMenu.DropDownItems.Add("تقرير الأداء", null, PerformanceReport_Click);
             reportsMenu.DropDownItems.Add("تقرير جودة المياه", null, WaterQualityReport_Click);
             reportsMenu.DropDownItems.Add("تقرير التكاليف", null, CostReport_Click);
@@ -257,6 +277,7 @@ namespace FishFarmManager.Forms
             
             // قائمة الأدوات
             var toolsMenu = new ToolStripMenuItem("🔧 أدوات");
+            LocalizationManager.Bind(toolsMenu, "MenuTools");
             toolsMenu.DropDownItems.Add("📝 عارض السجلات", null, ViewLogs_Click);
             toolsMenu.DropDownItems.Add(new ToolStripSeparator());
             toolsMenu.DropDownItems.Add("👥 إدارة المستخدمين", null, ManageUsers_Click);
@@ -266,6 +287,7 @@ namespace FishFarmManager.Forms
             
             // قائمة المساعدة
             var helpMenu = new ToolStripMenuItem("مساعدة");
+            LocalizationManager.Bind(helpMenu, "MenuHelp");
             helpMenu.DropDownItems.Add("حول البرنامج", null, About_Click);
             
             menuStrip.Items.AddRange(new ToolStripItem[] { fileMenu, managementMenu, salesMenu, costMenu, maintenanceMenu, hrMenu, inventoryMenu, purchasingMenu, accountingMenu, taxMenu, reportsMenu, toolsMenu, helpMenu });
@@ -278,16 +300,22 @@ namespace FishFarmManager.Forms
             var toolStrip = new ToolStrip { Dock = DockStyle.Top };
 
             var pondsButton = new ToolStripButton { Text = "الأحواض" };
+            LocalizationManager.Bind(pondsButton, "Ponds");
             pondsButton.Click += ManagePonds_Click;
             var cyclesButton = new ToolStripButton { Text = "الدورات" };
+            LocalizationManager.Bind(cyclesButton, "Cycles");
             cyclesButton.Click += ManageCycles_Click;
             var feedingButton = new ToolStripButton { Text = "التغذية" };
+            LocalizationManager.Bind(feedingButton, "Feeding");
             feedingButton.Click += RecordFeeding_Click;
             var waterButton = new ToolStripButton { Text = "جودة المياه" };
+            LocalizationManager.Bind(waterButton, "WaterQuality");
             waterButton.Click += MonitorWaterQuality_Click;
             var mortalityButton = new ToolStripButton { Text = "النفوق" };
+            LocalizationManager.Bind(mortalityButton, "Mortality");
             mortalityButton.Click += RecordMortality_Click;
             var dashboardButton = new ToolStripButton { Text = "لوحة التحكم" };
+            LocalizationManager.Bind(dashboardButton, "Dashboard");
             dashboardButton.Click += ShowDashboard_Click;
 
             toolStrip.Items.AddRange(new ToolStripItem[] 
@@ -950,7 +978,7 @@ namespace FishFarmManager.Forms
 
             try
             {
-                var settingsForm = new SettingsForm(_context);
+                var settingsForm = _serviceProvider.GetRequiredService<SettingsForm>();
                 settingsForm.ShowDialog();
                 LoggingService.LogInfo("تم فتح نموذج الإعدادات بنجاح");
             }
@@ -1091,6 +1119,20 @@ namespace FishFarmManager.Forms
                 MessageBox.Show($"تعذر فتح الشاشة: {ex.Message}", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void LocalizationManager_CultureChanged(object? sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => LocalizationManager_CultureChanged(sender, e)));
+                return;
+            }
+
+            ThemeManager.ApplyCultureDirection(this);
+            LocalizationManager.ApplyResources(this);
+            PerformLayout();
         }
 
         private void InventoryReconciliation_Click(object? sender, EventArgs e)

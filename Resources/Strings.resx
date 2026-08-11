@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AppName" xml:space="preserve"><value>أكوا فارم برو</value></data>
+  <data name="Save" xml:space="preserve"><value>حفظ</value></data>
+  <data name="Cancel" xml:space="preserve"><value>إلغاء</value></data>
+  <data name="Add" xml:space="preserve"><value>إضافة</value></data>
+  <data name="Edit" xml:space="preserve"><value>تعديل</value></data>
+  <data name="Delete" xml:space="preserve"><value>حذف</value></data>
+  <data name="Search" xml:space="preserve"><value>بحث</value></data>
+  <data name="Refresh" xml:space="preserve"><value>تحديث</value></data>
+  <data name="Close" xml:space="preserve"><value>إغلاق</value></data>
+  <data name="Success" xml:space="preserve"><value>نجاح</value></data>
+  <data name="Error" xml:space="preserve"><value>خطأ</value></data>
+  <data name="Warning" xml:space="preserve"><value>تحذير</value></data>
+  <data name="Information" xml:space="preserve"><value>معلومات</value></data>
+  <data name="Confirmation" xml:space="preserve"><value>تأكيد</value></data>
+  <data name="JournalEntries" xml:space="preserve"><value>القيود اليومية</value></data>
+  <data name="JournalEntriesTab" xml:space="preserve"><value>القيود</value></data>
+  <data name="AddJournalEntry" xml:space="preserve"><value>إضافة قيد جديد</value></data>
+  <data name="CurrencySar" xml:space="preserve"><value>ر.س</value></data>
+  <data name="RequiredField" xml:space="preserve"><value>حقل {0} مطلوب.</value></data>
+  <data name="Description" xml:space="preserve"><value>البيان</value></data>
+  <data name="Account" xml:space="preserve"><value>الحساب</value></data>
+  <data name="SystemSettings" xml:space="preserve"><value>إعدادات النظام</value></data>
+  <data name="DatabaseSettings" xml:space="preserve"><value>إعدادات قاعدة البيانات</value></data>
+  <data name="BackupSettings" xml:space="preserve"><value>إعدادات النسخ الاحتياطي</value></data>
+  <data name="UiSettings" xml:space="preserve"><value>إعدادات الواجهة</value></data>
+  <data name="ReportSettings" xml:space="preserve"><value>إعدادات التقارير</value></data>
+  <data name="DatabasePath" xml:space="preserve"><value>مسار قاعدة البيانات:</value></data>
+  <data name="Browse" xml:space="preserve"><value>تصفح</value></data>
+  <data name="ConnectionSettings" xml:space="preserve"><value>إعدادات الاتصال:</value></data>
+  <data name="ConnectionTimeoutSeconds" xml:space="preserve"><value>مهلة الاتصال (ثانية):</value></data>
+  <data name="TestConnection" xml:space="preserve"><value>اختبار الاتصال</value></data>
+  <data name="CreateNewDatabase" xml:space="preserve"><value>إنشاء قاعدة بيانات جديدة</value></data>
+  <data name="EnableAutomaticBackup" xml:space="preserve"><value>تفعيل النسخ الاحتياطي التلقائي</value></data>
+  <data name="BackupFrequency" xml:space="preserve"><value>تكرار النسخ الاحتياطي:</value></data>
+  <data name="SavedBackupsCount" xml:space="preserve"><value>عدد النسخ المحفوظة:</value></data>
+  <data name="BackupPath" xml:space="preserve"><value>مسار النسخ الاحتياطي:</value></data>
+  <data name="CreateBackupNow" xml:space="preserve"><value>إنشاء نسخة احتياطية الآن</value></data>
+  <data name="Language" xml:space="preserve"><value>اللغة:</value></data>
+  <data name="Theme" xml:space="preserve"><value>السمة:</value></data>
+  <data name="FontSize" xml:space="preserve"><value>حجم الخط:</value></data>
+  <data name="ShowTooltips" xml:space="preserve"><value>إظهار التلميحات</value></data>
+  <data name="ShowStatusBar" xml:space="preserve"><value>إظهار شريط الحالة</value></data>
+  <data name="DefaultDateFormat" xml:space="preserve"><value>تنسيق التاريخ الافتراضي:</value></data>
+  <data name="DefaultCurrency" xml:space="preserve"><value>العملة الافتراضية:</value></data>
+  <data name="NumberFormat" xml:space="preserve"><value>تنسيق الأرقام:</value></data>
+  <data name="AutoSaveReports" xml:space="preserve"><value>حفظ التقارير تلقائياً</value></data>
+  <data name="ShowChartsInReports" xml:space="preserve"><value>إظهار الرسوم البيانية في التقارير</value></data>
+  <data name="SaveSettings" xml:space="preserve"><value>حفظ الإعدادات</value></data>
+  <data name="EntryDate" xml:space="preserve"><value>تاريخ القيد</value></data>
+  <data name="FiscalPeriod" xml:space="preserve"><value>الفترة المالية</value></data>
+  <data name="Source" xml:space="preserve"><value>المصدر</value></data>
+  <data name="Reference" xml:space="preserve"><value>المرجع</value></data>
+  <data name="SaveJournalDraft" xml:space="preserve"><value>حفظ القيد كمسودة</value></data>
+  <data name="DebitSar" xml:space="preserve"><value>مدين (ر.س)</value></data>
+  <data name="CreditSar" xml:space="preserve"><value>دائن (ر.س)</value></data>
+  <data name="LineDescription" xml:space="preserve"><value>بيان السطر</value></data>
+  <data name="JournalLines" xml:space="preserve"><value>أسطر القيد المحاسبي</value></data>
+  <data name="InvalidJournalEntry" xml:space="preserve"><value>قيد غير صالح</value></data>
+  <data name="SelectOpenPeriod" xml:space="preserve"><value>حدد فترة مالية مفتوحة.</value></data>
+  <data name="EnterJournalDescription" xml:space="preserve"><value>أدخل بيان القيد.</value></data>
+  <data name="EnterJournalSource" xml:space="preserve"><value>أدخل مصدر القيد.</value></data>
+  <data name="SelectAccountEachLine" xml:space="preserve"><value>حدد الحساب لكل سطر.</value></data>
+  <data name="EnterValidAmounts" xml:space="preserve"><value>أدخل مبالغ رقمية صحيحة.</value></data>
+  <data name="ApproveEntry" xml:space="preserve"><value>اعتماد القيد</value></data>
+  <data name="PostEntry" xml:space="preserve"><value>ترحيل القيد</value></data>
+  <data name="ReverseEntry" xml:space="preserve"><value>عكس القيد</value></data>
+  <data name="ReversalDate" xml:space="preserve"><value>تاريخ العكس:</value></data>
+  <data name="AccountingManagement" xml:space="preserve"><value>إدارة المحاسبة</value></data>
+  <data name="AccountingTitle" xml:space="preserve"><value>إدارة المحاسبة — الأستاذ العام والعملات الأجنبية</value></data>
+  <data name="OperationReason" xml:space="preserve"><value>سبب العملية / مرجع الموافقة:</value></data>
+  <data name="OperationFailedTitle" xml:space="preserve"><value>تعذر تنفيذ العملية</value></data>
+  <data name="UnexpectedOperationFailure" xml:space="preserve"><value>تعذر إكمال العملية. راجع السجل أو تواصل مع مسؤول النظام.</value></data>
+  <data name="Error.JournalNegativeAmount" xml:space="preserve"><value>لا يمكن أن تكون مبالغ القيد سالبة.</value></data>
+  <data name="Error.JournalPrecision" xml:space="preserve"><value>لا يمكن أن تتجاوز مبالغ القيد منزلتين عشريتين.</value></data>
+  <data name="Error.JournalDebitOrCredit" xml:space="preserve"><value>يجب أن يحتوي كل سطر على مبلغ مدين أو دائن فقط.</value></data>
+  <data name="Error.JournalMinimumLines" xml:space="preserve"><value>يتطلب القيد المحاسبي سطرين على الأقل.</value></data>
+  <data name="Error.JournalUnbalanced" xml:space="preserve"><value>القيد المحاسبي غير متوازن؛ يجب أن يتساوى إجمالي المدين والدائن.</value></data>
+  <data name="SettingsSavedRestart" xml:space="preserve"><value>تم حفظ الإعدادات. سيطبق مسار قاعدة البيانات بعد إعادة التشغيل.</value></data>
+  <data name="SettingsSaveFailed" xml:space="preserve"><value>تعذر حفظ الإعدادات. تحقق من القيم والمسارات المدخلة.</value></data>
+  <data name="DatabasePathRestart" xml:space="preserve"><value>سيتم تطبيق مسار قاعدة البيانات الجديد عند إعادة تشغيل التطبيق.</value></data>
+  <data name="ConnectionTestSucceeded" xml:space="preserve"><value>تم الاتصال وفحص سلامة قاعدة البيانات بنجاح.</value></data>
+  <data name="ConnectionTestFailed" xml:space="preserve"><value>فشل الاتصال بقاعدة البيانات أو فحص سلامتها. تحقق من المسار والمهلة.</value></data>
+  <data name="DatabaseCreated" xml:space="preserve"><value>تم إنشاء قاعدة بيانات جديدة. احفظ الإعدادات ثم أعد تشغيل التطبيق.</value></data>
+  <data name="DatabaseCreateFailed" xml:space="preserve"><value>تعذر إنشاء قاعدة البيانات الجديدة.</value></data>
+  <data name="BackupCreated" xml:space="preserve"><value>تم إنشاء النسخة الاحتياطية: {0}</value></data>
+  <data name="BackupCreateFailed" xml:space="preserve"><value>تعذر إنشاء النسخة الاحتياطية. تحقق من المسار والصلاحيات.</value></data>
+  <data name="MainWindowTitle" xml:space="preserve"><value>نظام إدارة مزرعة الأسماك - AquaFarm Pro</value></data>
+  <data name="MenuFile" xml:space="preserve"><value>ملف</value></data>
+  <data name="MenuManagement" xml:space="preserve"><value>الإدارة</value></data>
+  <data name="MenuSales" xml:space="preserve"><value>المبيعات</value></data>
+  <data name="MenuCostsSuppliers" xml:space="preserve"><value>التكاليف والموردون</value></data>
+  <data name="MenuMaintenance" xml:space="preserve"><value>الصيانة</value></data>
+  <data name="MenuHumanResources" xml:space="preserve"><value>الموارد البشرية</value></data>
+  <data name="MenuInventory" xml:space="preserve"><value>المخزون</value></data>
+  <data name="MenuPurchasing" xml:space="preserve"><value>المشتريات</value></data>
+  <data name="MenuFinancialAccounting" xml:space="preserve"><value>المحاسبة المالية</value></data>
+  <data name="MenuTaxInvoice" xml:space="preserve"><value>الضرائب والفاتورة الضريبية</value></data>
+  <data name="MenuReports" xml:space="preserve"><value>التقارير</value></data>
+  <data name="MenuTools" xml:space="preserve"><value>🔧 أدوات</value></data>
+  <data name="MenuHelp" xml:space="preserve"><value>مساعدة</value></data>
+  <data name="Ponds" xml:space="preserve"><value>الأحواض</value></data>
+  <data name="Cycles" xml:space="preserve"><value>الدورات</value></data>
+  <data name="Feeding" xml:space="preserve"><value>التغذية</value></data>
+  <data name="WaterQuality" xml:space="preserve"><value>جودة المياه</value></data>
+  <data name="Mortality" xml:space="preserve"><value>النفوق</value></data>
+  <data name="LoginWindowTitle" xml:space="preserve"><value>AquaFarm Pro - تسجيل الدخول</value></data>
+  <data name="LoginProductTitle" xml:space="preserve"><value>AquaFarm Pro&#10;نظام إدارة المزارع السمكية</value></data>
+  <data name="Username" xml:space="preserve"><value>اسم المستخدم:</value></data>
+  <data name="Password" xml:space="preserve"><value>كلمة المرور:</value></data>
+  <data name="ShowPassword" xml:space="preserve"><value>إظهار كلمة المرور</value></data>
+  <data name="Login" xml:space="preserve"><value>تسجيل الدخول</value></data>
+  <data name="Exit" xml:space="preserve"><value>خروج</value></data>
+  <data name="UsernameRequired" xml:space="preserve"><value>الرجاء إدخال اسم المستخدم.</value></data>
+  <data name="PasswordRequired" xml:space="preserve"><value>الرجاء إدخال كلمة المرور.</value></data>
+  <data name="AccountLockedMinutes" xml:space="preserve"><value>🚫 الحساب مقفل. حاول مرة أخرى بعد {0} دقيقة.</value></data>
+  <data name="Validating" xml:space="preserve"><value>جاري التحقق...</value></data>
+  <data name="InvalidCredentialsRemaining" xml:space="preserve"><value>اسم المستخدم أو كلمة المرور غير صحيحة. المحاولات المتبقية: {0}</value></data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>اسم المستخدم أو كلمة المرور غير صحيحة.</value></data>
+  <data name="LoginConnectionFailed" xml:space="preserve"><value>تعذر إكمال تسجيل الدخول. تحقق من الاتصال وحاول مرة أخرى.</value></data>
+  <data name="BackupWarningTitle" xml:space="preserve"><value>تحذير النسخ الاحتياطي</value></data>
+  <data name="BackupOverdueWarning" xml:space="preserve"><value>⚠️ لم يتم إنشاء نسخة احتياطية منذ {0} يوم.&#10;&#10;ينصح بإنشاء نسخة احتياطية من: ملف &gt; نسخ احتياطي.</value></data>
+  <data name="CriticalSecurityWarningTitle" xml:space="preserve"><value>تحذير أمني حرج</value></data>
+  <data name="DefaultPasswordWarning" xml:space="preserve"><value>⚠️ أنت تستخدم كلمة المرور الافتراضية.&#10;&#10;يجب تغييرها الآن لحماية النظام. هل تريد المتابعة؟</value></data>
+  <data name="BackupData" xml:space="preserve"><value>نسخ احتياطي</value></data>
+  <data name="RestoreData" xml:space="preserve"><value>استعادة</value></data>
+  <data name="ExportData" xml:space="preserve"><value>تصدير البيانات</value></data>
+  <data name="ManagePonds" xml:space="preserve"><value>إدارة الأحواض</value></data>
+  <data name="ProductionCycles" xml:space="preserve"><value>الدورات الإنتاجية</value></data>
+  <data name="RecordFeeding" xml:space="preserve"><value>تسجيل التغذية</value></data>
+  <data name="MonitorWaterQuality" xml:space="preserve"><value>مراقبة جودة المياه</value></data>
+  <data name="MonitorHaccp" xml:space="preserve"><value>مراقبة HACCP وسلامة الغذاء</value></data>
+  <data name="RecordMortality" xml:space="preserve"><value>تسجيل النفوق</value></data>
+  <data name="TreatmentRecords" xml:space="preserve"><value>سجل الأدوية والمعالجات</value></data>
+  <data name="EnvironmentalRecords" xml:space="preserve"><value>سجل التتبع البيئي</value></data>
+  <data name="AnimalHealthRecords" xml:space="preserve"><value>سجل الصحة الحيوانية</value></data>
+  <data name="BatchRecords" xml:space="preserve"><value>سجل الدفعات</value></data>
+  <data name="CertificationRecords" xml:space="preserve"><value>سجل الشهادات</value></data>
+  <data name="StaffTrainingRecords" xml:space="preserve"><value>سجل العمال والتدريب</value></data>
+  <data name="ManageCustomers" xml:space="preserve"><value>إدارة العملاء</value></data>
+  <data name="SalesOrders" xml:space="preserve"><value>أوامر المبيعات</value></data>
+  <data name="Payments" xml:space="preserve"><value>المدفوعات</value></data>
+  <data name="SalesReports" xml:space="preserve"><value>تقارير المبيعات</value></data>
+  <data name="ManageSuppliers" xml:space="preserve"><value>إدارة الموردين</value></data>
+  <data name="RecordCosts" xml:space="preserve"><value>تسجيل التكاليف</value></data>
+  <data name="ProductionCosting" xml:space="preserve"><value>تكلفة الإنتاج والنفوق والحصاد</value></data>
+  <data name="PaySupplierDues" xml:space="preserve"><value>دفع المستحقات</value></data>
+  <data name="CostAnalysisReports" xml:space="preserve"><value>تقارير تحليل التكاليف</value></data>
+  <data name="ManageEquipment" xml:space="preserve"><value>إدارة المعدات</value></data>
+  <data name="MaintenanceSchedules" xml:space="preserve"><value>جدولة الصيانة</value></data>
+  <data name="RecordMaintenance" xml:space="preserve"><value>تسجيل الصيانة</value></data>
+  <data name="SpareParts" xml:space="preserve"><value>قطع الغيار</value></data>
+  <data name="ManageEmployees" xml:space="preserve"><value>إدارة الموظفين</value></data>
+  <data name="AttendanceRecords" xml:space="preserve"><value>تسجيل الحضور</value></data>
+  <data name="ProcessPayroll" xml:space="preserve"><value>معالجة الرواتب</value></data>
+  <data name="ManageLeave" xml:space="preserve"><value>إدارة الإجازات</value></data>
+  <data name="HumanResourcesReports" xml:space="preserve"><value>تقارير الموارد البشرية</value></data>
+  <data name="ManageInventoryItems" xml:space="preserve"><value>إدارة بنود المخزون</value></data>
+  <data name="StockMovements" xml:space="preserve"><value>حركات المخزون</value></data>
+  <data name="StockAdjustments" xml:space="preserve"><value>تعديلات المخزون والجرد</value></data>
+  <data name="OperationalBatchTraceability" xml:space="preserve"><value>التتبع التشغيلي للدفعات</value></data>
+  <data name="PurchaseOrders" xml:space="preserve"><value>أوامر الشراء</value></data>
+  <data name="GoodsReceiving" xml:space="preserve"><value>استلام البضائع</value></data>
+  <data name="PurchaseReports" xml:space="preserve"><value>تقارير المشتريات</value></data>
+  <data name="InventoryLedgerReconciliation" xml:space="preserve"><value>مطابقة المخزون مع الأستاذ</value></data>
+  <data name="FinancialDashboard" xml:space="preserve"><value>لوحة التحكم المالية</value></data>
+  <data name="IncomeStatement" xml:space="preserve"><value>قائمة الدخل</value></data>
+  <data name="BalanceSheet" xml:space="preserve"><value>الميزانية العمومية</value></data>
+  <data name="CashFlowStatement" xml:space="preserve"><value>قائمة التدفق النقدي</value></data>
+  <data name="TrialBalance" xml:space="preserve"><value>الميزان التجريبي</value></data>
+  <data name="FixedAssets" xml:space="preserve"><value>الأصول الثابتة</value></data>
+  <data name="Depreciation" xml:space="preserve"><value>الإهلاك</value></data>
+  <data name="TaxInvoice" xml:space="preserve"><value>الفاتورة الضريبية</value></data>
+  <data name="VatReturn" xml:space="preserve"><value>إقرار ضريبة القيمة المضافة</value></data>
+  <data name="VatReports" xml:space="preserve"><value>تقارير ضريبة القيمة المضافة</value></data>
+  <data name="ZatcaIntegration" xml:space="preserve"><value>🔐 التكامل مع ZATCA (فاتورة)</value></data>
+  <data name="PerformanceReport" xml:space="preserve"><value>تقرير الأداء</value></data>
+  <data name="WaterQualityReport" xml:space="preserve"><value>تقرير جودة المياه</value></data>
+  <data name="CostReport" xml:space="preserve"><value>تقرير التكاليف</value></data>
+  <data name="MortalityReport" xml:space="preserve"><value>تقرير النفوق</value></data>
+  <data name="TreatmentReport" xml:space="preserve"><value>تقرير المعالجات والعلاجات</value></data>
+  <data name="FeedingReport" xml:space="preserve"><value>تقرير التغذية</value></data>
+  <data name="AnimalHealthReport" xml:space="preserve"><value>تقرير الصحة الحيوانية</value></data>
+  <data name="ProductionReport" xml:space="preserve"><value>تقرير الإنتاج</value></data>
+  <data name="EnvironmentalReport" xml:space="preserve"><value>تقرير بيئي</value></data>
+  <data name="CertificationReport" xml:space="preserve"><value>تقرير شهادات الجودة</value></data>
+  <data name="PondPerformanceReport" xml:space="preserve"><value>تقرير مقارنة الأداء بين الأحواض</value></data>
+  <data name="InventoryReport" xml:space="preserve"><value>تقرير المخزون</value></data>
+  <data name="LogViewer" xml:space="preserve"><value>📝 عارض السجلات</value></data>
+  <data name="UserManagement" xml:space="preserve"><value>👥 إدارة المستخدمين</value></data>
+  <data name="BackupTool" xml:space="preserve"><value>💾 النسخ الاحتياطي</value></data>
+  <data name="SettingsTool" xml:space="preserve"><value>⚙️ الإعدادات</value></data>
+  <data name="About" xml:space="preserve"><value>حول البرنامج</value></data>
+  <data name="Overview" xml:space="preserve"><value>نظرة عامة</value></data>
+  <data name="FiscalPeriods" xml:space="preserve"><value>الفترات المالية</value></data>
+  <data name="CloseSelectedPeriod" xml:space="preserve"><value>إقفال الفترة المحددة</value></data>
+  <data name="FiscalYears" xml:space="preserve"><value>السنوات المالية</value></data>
+  <data name="CreateOpeningBalances" xml:space="preserve"><value>إنشاء أرصدة افتتاحية</value></data>
+  <data name="RetainedEarningsAccount" xml:space="preserve"><value>حساب الأرباح المبقاة</value></data>
+  <data name="CreateClosingEntry" xml:space="preserve"><value>إنشاء قيد الإقفال</value></data>
+  <data name="CloseFiscalYear" xml:space="preserve"><value>إقفال السنة</value></data>
+  <data name="NextYearName" xml:space="preserve"><value>اسم السنة التالية</value></data>
+  <data name="Start" xml:space="preserve"><value>البداية</value></data>
+  <data name="End" xml:space="preserve"><value>النهاية</value></data>
+  <data name="OpenNextYear" xml:space="preserve"><value>فتح السنة التالية</value></data>
+  <data name="Adjustments" xml:space="preserve"><value>التسويات</value></data>
+  <data name="Period" xml:space="preserve"><value>الفترة</value></data>
+  <data name="AdjustmentType" xml:space="preserve"><value>نوع التسوية</value></data>
+  <data name="SupportingDocument" xml:space="preserve"><value>المستند المؤيد</value></data>
+  <data name="ScheduledReversal" xml:space="preserve"><value>عكس مجدول</value></data>
+  <data name="ReversalDateNoColon" xml:space="preserve"><value>تاريخ العكس</value></data>
+  <data name="CreateAdjustmentEntry" xml:space="preserve"><value>إنشاء قيد تسوية</value></data>
+  <data name="ReverseDueUntil" xml:space="preserve"><value>العكس المستحق حتى</value></data>
+  <data name="RunDueReversals" xml:space="preserve"><value>تنفيذ العكس المستحق</value></data>
+  <data name="OperationalPosting" xml:space="preserve"><value>الترحيل التشغيلي</value></data>
+  <data name="ApprovePurchaseReceiving" xml:space="preserve"><value>اعتماد استلام المشتريات</value></data>
+  <data name="ApproveAllAddStock" xml:space="preserve"><value>اعتماد وإضافة جميع البنود للمخزون</value></data>
+  <data name="PostInventoryCost" xml:space="preserve"><value>ترحيل تكلفة المخزون</value></data>
+  <data name="AccountingPeriod" xml:space="preserve"><value>الفترة المحاسبية</value></data>
+  <data name="PostStockMovement" xml:space="preserve"><value>ترحيل حركة المخزون</value></data>
+  <data name="SettleVatReturns" xml:space="preserve"><value>تسوية إقرارات VAT</value></data>
+  <data name="PostVatSettlement" xml:space="preserve"><value>ترحيل تسوية إقرار VAT</value></data>
+  <data name="AccountingConfiguration" xml:space="preserve"><value>الإعداد المحاسبي</value></data>
+  <data name="CreateLoadInitialMap" xml:space="preserve"><value>إنشاء/تحميل الخريطة الأولية</value></data>
+  <data name="ApproveSelectedMap" xml:space="preserve"><value>اعتماد الخريطة المحددة</value></data>
+  <data name="ExchangeRates" xml:space="preserve"><value>أسعار الصرف</value></data>
+  <data name="Currency" xml:space="preserve"><value>العملة</value></data>
+  <data name="Date" xml:space="preserve"><value>التاريخ</value></data>
+  <data name="Purpose" xml:space="preserve"><value>الغرض</value></data>
+  <data name="SarPerUnit" xml:space="preserve"><value>SAR لكل وحدة</value></data>
+  <data name="OfficialSource" xml:space="preserve"><value>المصدر الرسمي</value></data>
+  <data name="EvidenceReference" xml:space="preserve"><value>مرجع الدليل</value></data>
+  <data name="SaveAsDraft" xml:space="preserve"><value>حفظ كمسودة</value></data>
+  <data name="ApproveSelectedRate" xml:space="preserve"><value>اعتماد السعر المحدد</value></data>
+  <data name="ForeignCurrencyItems" xml:space="preserve"><value>البنود والعملات الأجنبية</value></data>
+  <data name="PostedRecognitionLineId" xml:space="preserve"><value>معرف سطر الاعتراف المرحل</value></data>
+  <data name="Type" xml:space="preserve"><value>النوع</value></data>
+  <data name="RegisterMonetaryItem" xml:space="preserve"><value>تسجيل بند نقدي</value></data>
+  <data name="SettlementDate" xml:space="preserve"><value>تاريخ التسوية</value></data>
+  <data name="ForeignAmount" xml:space="preserve"><value>المبلغ الأجنبي</value></data>
+  <data name="TransactionRate" xml:space="preserve"><value>سعر المعاملة</value></data>
+  <data name="CashAccount" xml:space="preserve"><value>النقدية</value></data>
+  <data name="RealisedGain" xml:space="preserve"><value>ربح محقق</value></data>
+  <data name="RealisedLoss" xml:space="preserve"><value>خسارة محققة</value></data>
+  <data name="SettleSelectedItem" xml:space="preserve"><value>تسوية البند المحدد</value></data>
+  <data name="ClosingPeriod" xml:space="preserve"><value>فترة الإقفال</value></data>
+  <data name="RevaluationGain" xml:space="preserve"><value>ربح تقييم</value></data>
+  <data name="RevaluationLoss" xml:space="preserve"><value>خسارة تقييم</value></data>
+  <data name="RevalueAllOpenItems" xml:space="preserve"><value>إعادة تقييم جميع البنود المفتوحة</value></data>
+  <data name="SelectListValue" xml:space="preserve"><value>حدد قيمة من القائمة.</value></data>
+  <data name="Enum.AccountingAdjustmentType.Accrual" xml:space="preserve"><value>استحقاق</value></data>
+  <data name="Enum.AccountingAdjustmentType.Deferral" xml:space="preserve"><value>تأجيل</value></data>
+  <data name="Enum.AccountingAdjustmentType.Reclassification" xml:space="preserve"><value>إعادة تصنيف</value></data>
+  <data name="Enum.AccountingAdjustmentType.Estimate" xml:space="preserve"><value>تقدير</value></data>
+  <data name="Enum.AccountingAdjustmentType.Correction" xml:space="preserve"><value>تصحيح</value></data>
+  <data name="Enum.AccountingAdjustmentType.Other" xml:space="preserve"><value>أخرى</value></data>
+  <data name="Enum.ExchangeRatePurpose.Transaction" xml:space="preserve"><value>معاملة</value></data>
+  <data name="Enum.ExchangeRatePurpose.Closing" xml:space="preserve"><value>إقفال</value></data>
+  <data name="Enum.ForeignMonetaryItemKind.Asset" xml:space="preserve"><value>أصل</value></data>
+  <data name="Enum.ForeignMonetaryItemKind.Liability" xml:space="preserve"><value>التزام</value></data>
+  <data name="Enum.FiscalPeriodStatus.Open" xml:space="preserve"><value>مفتوحة</value></data>
+  <data name="Enum.FiscalPeriodStatus.Closed" xml:space="preserve"><value>مقفلة</value></data>
+  <data name="Enum.JournalEntryStatus.Draft" xml:space="preserve"><value>مسودة</value></data>
+  <data name="Enum.JournalEntryStatus.Approved" xml:space="preserve"><value>معتمد</value></data>
+  <data name="Enum.JournalEntryStatus.Posted" xml:space="preserve"><value>مرحّل</value></data>
+  <data name="Enum.JournalEntryStatus.Reversed" xml:space="preserve"><value>معكوس</value></data>
+  <data name="Enum.AccountingConfigurationStatus.Draft" xml:space="preserve"><value>مسودة</value></data>
+  <data name="Enum.AccountingConfigurationStatus.Approved" xml:space="preserve"><value>معتمد</value></data>
+  <data name="Enum.AccountingConfigurationStatus.Retired" xml:space="preserve"><value>متقاعد</value></data>
+  <data name="Enum.ExchangeRateStatus.Draft" xml:space="preserve"><value>مسودة</value></data>
+  <data name="Enum.ExchangeRateStatus.Approved" xml:space="preserve"><value>معتمد</value></data>
+  <data name="Enum.ExchangeRateStatus.Retired" xml:space="preserve"><value>متقاعد</value></data>
+  <data name="Enum.ForeignMonetaryItemStatus.Open" xml:space="preserve"><value>مفتوح</value></data>
+  <data name="Enum.ForeignMonetaryItemStatus.Settled" xml:space="preserve"><value>مسوّى</value></data>
+  <data name="Enum.VATReturnStatus.Draft" xml:space="preserve"><value>مسودة</value></data>
+  <data name="Enum.VATReturnStatus.UnderReview" xml:space="preserve"><value>قيد المراجعة</value></data>
+  <data name="Enum.VATReturnStatus.Approved" xml:space="preserve"><value>معتمد</value></data>
+  <data name="Enum.VATReturnStatus.Submitted" xml:space="preserve"><value>مقدم</value></data>
+  <data name="Enum.VATReturnStatus.Paid" xml:space="preserve"><value>مدفوع</value></data>
+  <data name="Enum.VATReturnStatus.Closed" xml:space="preserve"><value>مغلق</value></data>
+  <data name="Enum.VATReturnStatus.Cancelled" xml:space="preserve"><value>ملغي</value></data>
+  <data name="Enum.StockMovementType.Purchase" xml:space="preserve"><value>شراء</value></data>
+  <data name="Enum.StockMovementType.Sale" xml:space="preserve"><value>بيع</value></data>
+  <data name="Enum.StockMovementType.Production" xml:space="preserve"><value>إنتاج</value></data>
+  <data name="Enum.StockMovementType.Consumption" xml:space="preserve"><value>استهلاك</value></data>
+  <data name="Enum.StockMovementType.Transfer" xml:space="preserve"><value>تحويل</value></data>
+  <data name="Enum.StockMovementType.Adjustment" xml:space="preserve"><value>تسوية</value></data>
+  <data name="Enum.StockMovementType.AdjustmentIncrease" xml:space="preserve"><value>تسوية زيادة</value></data>
+  <data name="Enum.StockMovementType.AdjustmentDecrease" xml:space="preserve"><value>تسوية نقص</value></data>
+  <data name="Enum.StockMovementType.Return" xml:space="preserve"><value>إرجاع</value></data>
+  <data name="Enum.StockMovementType.Damage" xml:space="preserve"><value>تلف</value></data>
+  <data name="Enum.StockMovementType.Expiry" xml:space="preserve"><value>انتهاء صلاحية</value></data>
+  <data name="Enum.StockMovementType.Expired" xml:space="preserve"><value>منتهي الصلاحية</value></data>
+  <data name="Enum.StockMovementType.Loss" xml:space="preserve"><value>فقدان</value></data>
+  <data name="Enum.StockMovementType.Waste" xml:space="preserve"><value>هدر</value></data>
+  <data name="Enum.StockMovementType.Found" xml:space="preserve"><value>عثور</value></data>
+  <data name="Enum.StockMovementType.Opening" xml:space="preserve"><value>رصيد افتتاحي</value></data>
+  <data name="Enum.StockMovementType.Closing" xml:space="preserve"><value>رصيد ختامي</value></data>
+  <data name="AccountingSummary" xml:space="preserve"><value>حالة النواة المحاسبية&#10;&#10;القيود المسودة: {0:N0}        القيود المعتمدة غير المرحلة: {1:N0}        القيود المرحلة: {2:N0}&#10;&#10;الفترات المفتوحة: {3:N0}        أسعار الصرف المعتمدة: {4:N0}&#10;&#10;البنود النقدية الأجنبية المفتوحة: {5:N0}        بنود تحتاج متابعة إقفال: {6:N0}&#10;&#10;العملة الوظيفية وعملة العرض: SAR</value></data>
+</root>

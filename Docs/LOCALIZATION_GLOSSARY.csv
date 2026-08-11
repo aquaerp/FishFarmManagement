@@ -1,0 +1,31 @@
+Key,Arabic,English,Context,Notes
+AppName,أكوا فارم برو,AquaFarm Pro,Application,Brand name is not translated
+Dashboard,لوحة المعلومات,Dashboard,Navigation,
+Settings,إعدادات النظام,System Settings,Window title,
+JournalEntries,القيود اليومية,Journal Entries,Accounting,Preferred over Constraints
+AddJournalEntry,إضافة قيد جديد,Add Journal Entry,Accounting action,
+JournalEntryNumber,رقم القيد,Entry Number,Accounting field,
+Account,الحساب,Account,Accounting,
+Debit,مدين,Debit,Accounting,
+Credit,دائن,Credit,Accounting,
+Description,البيان,Description,Accounting,
+Save,حفظ,Save,Common action,
+Cancel,إلغاء,Cancel,Common action,
+Add,إضافة,Add,Common action,
+Edit,تعديل,Edit,Common action,
+Delete,حذف,Delete,Common action,
+Search,بحث,Search,Common action,
+Refresh,تحديث,Refresh,Common action,
+Close,إغلاق,Close,Common action,
+Success,نجاح,Success,Message title,Use one Arabic term consistently
+Error,خطأ,Error,Message title,
+Warning,تحذير,Warning,Message title,
+Information,معلومات,Information,Message title,
+Confirmation,تأكيد,Confirmation,Message title,
+Language,اللغة,Language,Settings,
+Arabic,العربية,Arabic,Language name,
+English,الإنجليزية,English,Language name,
+DatabasePath,مسار قاعدة البيانات,Database Path,Settings,
+ConnectionTimeout,مهلة الاتصال,Connection Timeout,Settings,
+CurrencySar,ر.س,SAR,Formatted value suffix,
+RequiredField,هذا الحقل مطلوب,This field is required,Validation,Prefer field-specific formatted resource
