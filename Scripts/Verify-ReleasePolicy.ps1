@@ -5,11 +5,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$assembly = Join-Path $ArtifactsRoot "FishFarmManager-bin\Release\net8.0-windows\FishFarmManager.dll"
-if (!(Test-Path -LiteralPath $assembly))
+$releaseRoot = Join-Path $ArtifactsRoot "FishFarmManager-bin\Release"
+$assemblies = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "FishFarmManager.dll" -ErrorAction SilentlyContinue)
+if ($assemblies.Count -ne 1)
 {
-    throw "Release assembly not found: $assembly"
+    throw "Expected exactly one Release assembly below $releaseRoot; found $($assemblies.Count)."
 }
+$assembly = $assemblies[0].FullName
 
 $content = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($assembly))
 $forbiddenMarkers = @(
