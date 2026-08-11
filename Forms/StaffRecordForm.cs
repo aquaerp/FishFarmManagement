@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Microsoft.EntityFrameworkCore;
 using FishFarmManager.Data;
 using FishFarmManager.Models;
 
@@ -18,6 +19,7 @@ namespace FishFarmManager.Forms
         private TextBox _certificateTextBox = null!;
         private TextBox _notesTextBox = null!;
         private TextBox _recordedByTextBox = null!;
+        private ComboBox _employeeComboBox = null!;
         private Button _addButton = null!;
         private Button _deleteButton = null!;
         private int _selectedRecordId = -1;
@@ -26,7 +28,20 @@ namespace FishFarmManager.Forms
         {
             _context = context;
             InitializeComponent();
+            LoadEmployees();
             LoadStaffRecords();
+        }
+
+        private void LoadEmployees()
+        {
+            var employees = _context.Employees.AsNoTracking()
+                .Where(value => value.Status == EmployeeStatus.Active)
+                .OrderBy(value => value.Name)
+                .Select(value => new { value.Id, value.Name })
+                .ToList();
+            _employeeComboBox.DataSource = employees;
+            _employeeComboBox.DisplayMember = "Name";
+            _employeeComboBox.ValueMember = "Id";
         }
 
         private void InitializeComponent()
@@ -74,6 +89,11 @@ namespace FishFarmManager.Forms
             _nameTextBox = new TextBox { Location = new Point(110, y), Size = new Size(controlWidth, 20) };
             inputPanel.Controls.Add(nameLabel);
             inputPanel.Controls.Add(_nameTextBox);
+            var employeeLabel = new Label { Text = "الموظف المرتبط:", Location = new Point(10, y + spacing), Size = new Size(labelWidth, 20) };
+            _employeeComboBox = new ComboBox { Location = new Point(110, y + spacing), Size = new Size(controlWidth, 20), DropDownStyle = ComboBoxStyle.DropDownList };
+            inputPanel.Controls.Add(employeeLabel);
+            inputPanel.Controls.Add(_employeeComboBox);
+            y += spacing;
             y += spacing;
 
             // الدور/الوظيفة
@@ -155,33 +175,28 @@ namespace FishFarmManager.Forms
                 MessageBox.Show("يرجى تعبئة جميع الحقول الأساسية", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            
-            // Note: StaffRecord requires EmployeeId (foreign key to Employee table)
-            // This form should ideally link to existing employees, not create standalone records
-            // For now, show a helpful message
-            MessageBox.Show(
-                "لإضافة سجلات العمال، يجب أولاً إنشاء الموظف من شاشة 'إدارة الموظفين'\n" +
-                "ثم يمكنك تسجيل التدريبات والشهادات المهنية للموظف من خلال ملفه الشخصي.",
-                "معلومة",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
-            
-            // TODO: Implement proper Employee selection via ComboBox
-            // Then create StaffRecord linked to selected Employee via EmployeeId
-            
-            /*
+
+            if (_employeeComboBox.SelectedValue is not int employeeId || employeeId <= 0)
+            {
+                MessageBox.Show("الرجاء اختيار الموظف المرتبط بالسجل", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var employee = _context.Employees.Find(employeeId);
+            if (employee == null)
+                return;
             var record = new StaffRecord
             {
-                EmployeeId = selectedEmployeeId,  // ← Required Foreign Key
-                RecordType = _roleTextBox.Text.Trim(),  // ← Required Field
+                EmployeeId = employee.Id,
+                RecordType = "StaffRecord",
+                RecordDate = DateTime.Now,
                 Name = _nameTextBox.Text.Trim(),
                 Role = _roleTextBox.Text.Trim(),
                 HireDate = _hireDatePicker.Value.Date,
                 Training = _trainingTextBox.Text.Trim(),
                 Certificate = _certificateTextBox.Text.Trim(),
                 Notes = _notesTextBox.Text.Trim(),
-                RecordedBy = _recordedByTextBox.Text.Trim(),
+                RecordedBy = Services.AuthenticationService.CurrentUsername,
                 CreatedAt = DateTime.Now
             };
             _context.StaffRecords.Add(record);
@@ -189,7 +204,6 @@ namespace FishFarmManager.Forms
             LoadStaffRecords();
             ClearInputs();
             MessageBox.Show("تمت إضافة السجل بنجاح", "نجاح", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            */
         }
 
         private void DeleteButton_Click(object? sender, EventArgs e)

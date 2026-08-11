@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Microsoft.EntityFrameworkCore;
 using FishFarmManager.Data;
 using FishFarmManager.Models;
 
@@ -18,6 +19,7 @@ namespace FishFarmManager.Forms
         private TextBox _numberTextBox = null!;
         private TextBox _notesTextBox = null!;
         private TextBox _recordedByTextBox = null!;
+        private ComboBox _certificationComboBox = null!;
         private Button _addButton = null!;
         private Button _deleteButton = null!;
         private int _selectedRecordId = -1;
@@ -26,7 +28,19 @@ namespace FishFarmManager.Forms
         {
             _context = context;
             InitializeComponent();
+            LoadCertifications();
             LoadCertificationRecords();
+        }
+
+        private void LoadCertifications()
+        {
+            var certifications = _context.Certifications.AsNoTracking()
+                .OrderBy(value => value.Name)
+                .Select(value => new { value.Id, Name = value.Name })
+                .ToList();
+            _certificationComboBox.DataSource = certifications;
+            _certificationComboBox.DisplayMember = "Name";
+            _certificationComboBox.ValueMember = "Id";
         }
 
         private void InitializeComponent()
@@ -74,6 +88,11 @@ namespace FishFarmManager.Forms
             _nameTextBox = new TextBox { Location = new Point(110, y), Size = new Size(controlWidth, 20) };
             inputPanel.Controls.Add(nameLabel);
             inputPanel.Controls.Add(_nameTextBox);
+            var certificationLabel = new Label { Text = "نوع الشهادة:", Location = new Point(10, y + spacing), Size = new Size(labelWidth, 20) };
+            _certificationComboBox = new ComboBox { Location = new Point(110, y + spacing), Size = new Size(controlWidth, 20), DropDownStyle = ComboBoxStyle.DropDownList };
+            inputPanel.Controls.Add(certificationLabel);
+            inputPanel.Controls.Add(_certificationComboBox);
+            y += spacing;
             y += spacing;
 
             // الجهة المانحة
@@ -155,41 +174,32 @@ namespace FishFarmManager.Forms
                 MessageBox.Show("يرجى تعبئة جميع الحقول الأساسية", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            
-            // Note: CertificationRecord requires CertificationId (foreign key to Certification table)
-            // This form should ideally link to existing certifications, not create standalone records
-            // For now, show a helpful message
-            MessageBox.Show(
-                "لإضافة سجلات الشهادات، يجب أولاً إنشاء نوع الشهادة من شاشة 'إدارة الشهادات'\n" +
-                "ثم يمكنك تسجيل حصول الموظفين على هذه الشهادات.",
-                "معلومة",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
-            
-            // TODO: Implement proper Certification selection via ComboBox
-            // Then create CertificationRecord linked to selected Certification via CertificationId
-            
-            /*
+
+            if (_certificationComboBox.SelectedValue is not int certificationId || certificationId <= 0)
+            {
+                MessageBox.Show("الرجاء اختيار نوع الشهادة المرتبط بالسجل", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             var record = new CertificationRecord
             {
-                CertificationId = selectedCertificationId,  // ← Required Foreign Key
-                RecordType = "Certification",  // ← Required Field
+                CertificationId = certificationId,
+                RecordDate = DateTime.Now,
+                RecordType = "CertificationRecord",
                 CertificateName = _nameTextBox.Text.Trim(),
                 Issuer = _issuerTextBox.Text.Trim(),
                 IssueDate = _issueDatePicker.Value.Date,
-                ExpiryDate = _expiryDatePicker.Checked ? _expiryDatePicker.Value.Date : DateTime.Now.AddYears(1),
+                ExpiryDate = _expiryDatePicker.Checked ? _expiryDatePicker.Value.Date : null,
                 CertificateNumber = _numberTextBox.Text.Trim(),
                 Notes = _notesTextBox.Text.Trim(),
-                RecordedBy = null, // TODO: Should be employee ID from logged user
+                RecordedBy = Services.AuthenticationService.CurrentUser?.EmployeeId,
                 CreatedAt = DateTime.Now
             };
             _context.CertificationRecords.Add(record);
             _context.SaveChanges();
             LoadCertificationRecords();
             ClearInputs();
-            MessageBox.Show("تمت إضافة السجل بنجاح", "نجاح", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            */
+            MessageBox.Show("تمت إضافة سجل الشهادة بنجاح", "نجاح", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void DeleteButton_Click(object? sender, EventArgs e)
