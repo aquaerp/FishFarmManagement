@@ -33,3 +33,17 @@ jobs:
       - name: Check Release package policy
         shell: pwsh
         run: ./Scripts/Verify-ReleasePolicy.ps1 -ArtifactsRoot "${{ runner.temp }}\AquaFarm-G0"
+
+      - name: Build deterministic release package
+        shell: pwsh
+        run: ./Scripts/New-ReleasePackage.ps1 -Version "1.0.${{ github.run_number }}" -OutputRoot "${{ runner.temp }}\AquaFarm-Release"
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: AquaFarm-release-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}\AquaFarm-Release\*.zip
+            ${{ runner.temp }}\AquaFarm-Release\*.sha256
+            ${{ runner.temp }}\AquaFarm-Release\*.manifest.json
+          if-no-files-found: error

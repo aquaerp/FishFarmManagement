@@ -1,4 +1,15 @@
 <Project>
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/AquaFarm/</PathMap>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CI)' == 'true' Or '$(ContinuousIntegrationBuild)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <RestoreLockedMode>true</RestoreLockedMode>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Phase0ArtifactsRoot)' != ''">
     <BaseIntermediateOutputPath>$(Phase0ArtifactsRoot)\$(MSBuildProjectName)-obj\</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
