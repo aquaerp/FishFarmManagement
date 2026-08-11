@@ -36,7 +36,7 @@ jobs:
 
       - name: Build deterministic release package
         shell: pwsh
-        run: ./Scripts/New-ReleasePackage.ps1 -Version "1.0.${{ github.run_number }}" -OutputRoot "${{ runner.temp }}\AquaFarm-Release"
+        run: ./Scripts/Verify-ReproducibleRelease.ps1 -Version "1.0.${{ github.run_number }}" -OutputRoot "${{ runner.temp }}\AquaFarm-Release"
 
       - name: Upload release evidence
         uses: actions/upload-artifact@v4
