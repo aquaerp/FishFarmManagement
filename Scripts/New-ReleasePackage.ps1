@@ -62,6 +62,10 @@ if (!$SkipTests)
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
+dotnet restore $project --locked-mode -r win-x64 --disable-parallel `
+    -p:RestoreFallbackFolders='' -m:1 -nr:false
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 dotnet publish $project -c Release -r win-x64 --self-contained true --no-restore `
     -p:Version=$Version -p:ContinuousIntegrationBuild=true `
     -p:PublishDir="$publishDirectory\" -m:1 -nr:false
