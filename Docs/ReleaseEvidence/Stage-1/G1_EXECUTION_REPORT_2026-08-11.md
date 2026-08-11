@@ -26,4 +26,13 @@
 
 ## إغلاق G1
 
-تم نقل العمل من `main` إلى `codex/commercial-release-baseline` وتقسيمه إلى commits وظيفية مستقلة. تعاد بوابة G0 بعد آخر commit لإثبات نظافة نقطة الأساس النهائية.
+تم نقل العمل من `main` إلى `codex/commercial-release-baseline` وتقسيمه إلى commits وظيفية مستقلة، ثم أعيدت بوابة G0 لإثبات نقطة الأساس النهائية.
+
+## التحقق النهائي بعد التقسيم
+
+- الفرع: `codex/commercial-release-baseline`.
+- آخر commit خاضع للاختبار: `483b737`.
+- Restore: ناجح.
+- Release build: ناجح، 0 تحذيرات و0 أخطاء.
+- الاختبارات: 147 ناجح، 0 فاشل، 0 متجاوز.
+- مجلد الدليل المعزول: `AquaFarm-G1-final-44310f5a60cc4403852e6dcf93b46d04`.
