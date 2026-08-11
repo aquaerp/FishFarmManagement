@@ -2,7 +2,7 @@ name: G0 Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, codex/commercial-release-baseline ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:
