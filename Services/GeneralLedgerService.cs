@@ -35,19 +35,19 @@ public static class JournalBalanceValidator
         {
             count++;
             if (line.Debit < 0 || line.Credit < 0)
-                throw new InvalidOperationException("Journal amounts cannot be negative.");
+                throw BusinessRuleError.Create("JournalNegativeAmount", "Journal amounts cannot be negative.");
             if (decimal.Round(line.Debit, 2) != line.Debit || decimal.Round(line.Credit, 2) != line.Credit)
-                throw new InvalidOperationException("Journal amounts cannot exceed two decimal places.");
+                throw BusinessRuleError.Create("JournalPrecision", "Journal amounts cannot exceed two decimal places.");
             if ((line.Debit > 0) == (line.Credit > 0))
-                throw new InvalidOperationException("Each journal line must contain either a debit or a credit amount.");
+                throw BusinessRuleError.Create("JournalDebitOrCredit", "Each journal line must contain either a debit or a credit amount.");
             totalDebit = checked(totalDebit + line.Debit);
             totalCredit = checked(totalCredit + line.Credit);
         }
 
         if (count < 2)
-            throw new InvalidOperationException("A journal entry requires at least two lines.");
+            throw BusinessRuleError.Create("JournalMinimumLines", "A journal entry requires at least two lines.");
         if (totalDebit != totalCredit)
-            throw new InvalidOperationException("The journal entry is not balanced.");
+            throw BusinessRuleError.Create("JournalUnbalanced", "The journal entry is not balanced.");
         return (totalDebit, totalCredit);
     }
 }

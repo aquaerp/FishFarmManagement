@@ -59,7 +59,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     public AccountingManagementForm(FishFarmContext context)
     {
         _context = context;
-        Text = "إدارة المحاسبة";
+        LocalizationManager.Bind(this, "AccountingManagement");
         WindowState = FormWindowState.Maximized;
         MinimumSize = new Size(1200, 760);
         if (!AuthenticationService.HasPermission(UserRole.Admin, UserRole.Manager, UserRole.Accountant))
@@ -80,7 +80,9 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     {
         Controls.Add(CreateTabs());
         Controls.Add(CreateCommandHeader());
-        Controls.Add(CreateTitleBar("إدارة المحاسبة — الأستاذ العام والعملات الأجنبية"));
+        var titleBar = CreateTitleBar("إدارة المحاسبة — الأستاذ العام والعملات الأجنبية");
+        LocalizationManager.Bind(titleBar.Controls.OfType<Label>().Single(), "AccountingTitle");
+        Controls.Add(titleBar);
     }
 
     private Control CreateCommandHeader()
@@ -91,9 +93,12 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             FlowDirection = FlowDirection.RightToLeft, WrapContents = false, BackColor = ThemeManager.PureWhite
         };
         var refresh = ActionButton("تحديث", (_, _) => RefreshAll(), secondary: true);
+        LocalizationManager.Bind(refresh, "Refresh");
         panel.Controls.Add(refresh);
         panel.Controls.Add(_reasonTextBox);
-        panel.Controls.Add(new Label { Text = "سبب العملية / مرجع الموافقة:", AutoSize = true, Padding = new Padding(5, 7, 5, 0) });
+        panel.Controls.Add(LocalizationManager.Bind(
+            new Label { AutoSize = true, Padding = new Padding(5, 7, 5, 0) },
+            "OperationReason"));
         return panel;
     }
 
@@ -121,15 +126,29 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
 
     private TabPage CreateJournalsTab()
     {
-        var page = new TabPage("القيود");
-        var commands = CommandBar(
-            ActionButton("اعتماد القيد", (_, _) => Run(() =>
+        var page = LocalizationManager.Bind(new TabPage(), "JournalEntriesTab");
+        var addEntry = LocalizationManager.Bind(
+            ActionButton(string.Empty, (_, _) => CreateJournalDraft()), "AddJournalEntry");
+        var approveEntry = LocalizationManager.Bind(
+            ActionButton(string.Empty, (_, _) => Run(() =>
                 new GeneralLedgerService(_context).Approve(SelectedId(_journalsGrid), Actor(), Reason()))),
-            ActionButton("ترحيل القيد", (_, _) => Run(() =>
+            "ApproveEntry");
+        var postEntry = LocalizationManager.Bind(
+            ActionButton(string.Empty, (_, _) => Run(() =>
                 new GeneralLedgerService(_context).Post(SelectedId(_journalsGrid), Actor(), Reason()))),
-            ActionButton("عكس القيد", (_, _) => Run(() =>
+            "PostEntry");
+        var reverseEntry = LocalizationManager.Bind(
+            ActionButton(string.Empty, (_, _) => Run(() =>
                 new GeneralLedgerService(_context).Reverse(SelectedId(_journalsGrid), _reversalDate.Value.Date, Actor(), Reason()))),
-            new Label { Text = "تاريخ العكس:", AutoSize = true, Padding = new Padding(5, 8, 5, 0) },
+            "ReverseEntry");
+        var reversalDateLabel = LocalizationManager.Bind(
+            new Label { AutoSize = true, Padding = new Padding(5, 8, 5, 0) }, "ReversalDate");
+        var commands = CommandBar(
+            addEntry,
+            approveEntry,
+            postEntry,
+            reverseEntry,
+            reversalDateLabel,
             _reversalDate);
         page.Controls.Add(_journalsGrid);
         page.Controls.Add(commands);
@@ -171,7 +190,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
 
     private TabPage CreateAdjustmentsTab()
     {
-        _adjustmentType.DataSource = Enum.GetValues<AccountingAdjustmentType>();
+        BindAccountingEnums();
         _scheduleReversal.CheckedChanged += (_, _) => _scheduledReversalDate.Enabled = _scheduleReversal.Checked;
         _scheduledReversalDate.Enabled = false;
         var page = new TabPage("التسويات");
@@ -234,7 +253,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
 
     private TabPage CreateRatesTab()
     {
-        _ratePurpose.DataSource = Enum.GetValues<ExchangeRatePurpose>();
+        BindExchangeRatePurposes();
         var page = new TabPage("أسعار الصرف");
         var entry = CommandBar(
             Labeled("العملة", _currencyText), Labeled("التاريخ", _rateDate), Labeled("الغرض", _ratePurpose),
@@ -251,7 +270,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
 
     private TabPage CreateForeignItemsTab()
     {
-        _itemKind.DataSource = Enum.GetValues<ForeignMonetaryItemKind>();
+        BindForeignItemKinds();
         _settlementDate.ValueChanged += (_, _) => LoadSettlementRates();
         _itemsGrid.SelectionChanged += (_, _) => LoadSettlementRates();
         var page = new TabPage("البنود والعملات الأجنبية");
@@ -308,17 +327,15 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         var missingClose = _context.ForeignMonetaryItems.Count(value => value.Status == ForeignMonetaryItemStatus.Open
             && _context.FiscalPeriods.Any(period => period.Status == FiscalPeriodStatus.Open
                 && period.EndDate >= value.LastMeasurementDate && period.EndDate != value.LastMeasurementDate));
-        _summaryLabel.Text = $"""
-            حالة النواة المحاسبية
-
-            القيود المسودة: {draft:N0}        القيود المعتمدة غير المرحلة: {approved:N0}        القيود المرحلة: {posted:N0}
-
-            الفترات المفتوحة: {openPeriods:N0}        أسعار الصرف المعتمدة: {approvedRates:N0}
-
-            البنود النقدية الأجنبية المفتوحة: {openItems:N0}        بنود تحتاج متابعة إقفال: {missingClose:N0}
-
-            العملة الوظيفية وعملة العرض: SAR
-            """;
+        _summaryLabel.Text = LocalizationManager.Format(
+            "AccountingSummary",
+            draft,
+            approved,
+            posted,
+            openPeriods,
+            approvedRates,
+            openItems,
+            missingClose);
     }
 
     private void LoadJournals() => _journalsGrid.DataSource = _context.JournalEntries.AsNoTracking()
@@ -326,13 +343,13 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         .Select(value => new
         {
             value.Id, value.EntryNumber, value.EntryDate, value.Description, value.Source,
-            Status = value.Status.ToString(), value.CreatedBy, value.ApprovedBy, value.PostedBy
+            value.Status, value.CreatedBy, value.ApprovedBy, value.PostedBy
         }).ToList();
 
     private void LoadPeriods() => _periodsGrid.DataSource = _context.FiscalPeriods.AsNoTracking()
         .OrderByDescending(value => value.StartDate).Select(value => new
         {
-            value.Id, value.Name, value.StartDate, value.EndDate, Status = value.Status.ToString(), value.ClosedBy
+            value.Id, value.Name, value.StartDate, value.EndDate, value.Status, value.ClosedBy
         }).ToList();
 
     private void LoadFiscalYears() => _yearsGrid.DataSource = _context.FiscalYears.AsNoTracking()
@@ -345,9 +362,9 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private void LoadAdjustments() => _adjustmentsGrid.DataSource = _context.AccountingAdjustments.AsNoTracking()
         .OrderByDescending(value => value.Id).Select(value => new
         {
-            value.Id, value.JournalEntry.EntryNumber, Type = value.Type.ToString(),
+            value.Id, value.JournalEntry.EntryNumber, value.Type,
             value.SupportingDocumentReference, value.ScheduledReversalDate,
-            JournalStatus = value.JournalEntry.Status.ToString(), value.ReversalJournalEntryId,
+            JournalStatus = value.JournalEntry.Status, value.ReversalJournalEntryId,
             value.CreatedBy, value.CreatedAtUtc
         }).ToList();
 
@@ -369,7 +386,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             .OrderByDescending(value => value.MovementDate).Take(500)
             .Select(value => new
             {
-                value.Id, value.MovementDate, Type = value.MovementType.ToString(),
+                value.Id, value.MovementDate, Type = value.MovementType,
                 Item = value.InventoryItem.Name, value.Quantity, value.TotalCost, value.TotalAmount,
                 Reference = value.Reference ?? value.ReferenceNumber
             }).ToList();
@@ -380,7 +397,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             .Select(value => new
             {
                 value.Id, value.PeriodNumber, value.PeriodStartDate, value.PeriodEndDate,
-                Status = value.Status.ToString(), value.SubmissionDate,
+                value.Status, value.SubmissionDate,
                 OutputVat = value.Box6_VATOnSales, InputVat = value.Box10_VATOnPurchases,
                 NetVat = value.Box15_NetVATDueForPeriod
             }).ToList();
@@ -389,15 +406,15 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private void LoadConfigurations() => _configurationGrid.DataSource = _context.AccountingConfigurations.AsNoTracking()
         .OrderByDescending(value => value.Version).Select(value => new
         {
-            value.Id, value.Name, value.Version, Status = value.Status.ToString(), value.CreatedBy, value.ApprovedBy
+            value.Id, value.Name, value.Version, value.Status, value.CreatedBy, value.ApprovedBy
         }).ToList();
 
     private void LoadRates() => _ratesGrid.DataSource = _context.ForeignExchangeRates.AsNoTracking()
         .OrderByDescending(value => value.RateDate).ThenBy(value => value.CurrencyCode)
         .Select(value => new
         {
-            value.Id, value.CurrencyCode, value.RateDate, Purpose = value.Purpose.ToString(), value.Version,
-            value.SarPerUnit, Status = value.Status.ToString(), value.SourceReference, value.EvidenceReference,
+            value.Id, value.CurrencyCode, value.RateDate, value.Purpose, value.Version,
+            value.SarPerUnit, value.Status, value.SourceReference, value.EvidenceReference,
             value.CreatedBy, value.ApprovedBy
         }).ToList();
 
@@ -405,9 +422,9 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         .OrderBy(value => value.Status).ThenBy(value => value.CurrencyCode).ThenBy(value => value.Reference)
         .Select(value => new
         {
-            value.Id, value.Reference, Kind = value.Kind.ToString(), value.CurrencyCode,
+            value.Id, value.Reference, value.Kind, value.CurrencyCode,
             value.OriginalForeignAmount, value.OutstandingForeignAmount, value.CarryingAmountSar,
-            value.LastMeasurementDate, Status = value.Status.ToString(), value.LedgerAccountId
+            value.LastMeasurementDate, value.Status, value.LedgerAccountId
         }).ToList();
 
     private void LoadLookups()
@@ -450,6 +467,29 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         catch (Exception ex) { ShowError(ex); }
     }
 
+    private void CreateJournalDraft()
+    {
+        try
+        {
+            var periods = _context.FiscalPeriods.AsNoTracking()
+                .Where(value => value.Status == FiscalPeriodStatus.Open)
+                .OrderBy(value => value.StartDate)
+                .Select(value => new { value.Id, value.Name, value.StartDate, value.EndDate })
+                .AsEnumerable().Select(value => (value.Id, $"{value.Name} ({value.StartDate:yyyy-MM-dd} — {value.EndDate:yyyy-MM-dd})"))
+                .ToList();
+            if (periods.Count == 0) throw new InvalidOperationException("لا توجد فترة مالية مفتوحة لإنشاء القيد.");
+            var accounts = PostingAccounts(balanceSheetOnly: false);
+            if (accounts.Count == 0) throw new InvalidOperationException("لا توجد حسابات ترحيل نشطة.");
+            using var dialog = new AccountingJournalDraftDialog(periods, accounts);
+            if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Request == null) return;
+            var entry = new GeneralLedgerService(_context).CreateDraft(dialog.Request, Actor(), Reason());
+            MessageBox.Show($"تم إنشاء القيد {entry.EntryNumber} كمسودة بنجاح.", "إضافة قيد",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RefreshAll();
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
     private void CreateAdjustment()
     {
         try
@@ -459,7 +499,7 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             new AccountingAdjustmentService(_context).CreateDraft(new AccountingAdjustmentRequest(
                 _adjustmentDate.Value.Date, SelectedLookup(_adjustmentPeriod), _adjustmentDescription.Text,
-                (AccountingAdjustmentType)_adjustmentType.SelectedItem!, _adjustmentEvidence.Text,
+                SelectedEnum<AccountingAdjustmentType>(_adjustmentType), _adjustmentEvidence.Text,
                 _scheduleReversal.Checked ? _scheduledReversalDate.Value.Date : null, dialog.Lines),
                 Actor(), Reason());
             ShowSuccessAndRefresh();
@@ -502,11 +542,11 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     }
 
     private void CreateRateDraft() => Run(() => new ForeignExchangeRateService(_context).CreateDraft(new(
-        _currencyText.Text, _rateDate.Value.Date, (ExchangeRatePurpose)_ratePurpose.SelectedItem!,
+        _currencyText.Text, _rateDate.Value.Date, SelectedEnum<ExchangeRatePurpose>(_ratePurpose),
         _rateValue.Value, _sourceText.Text, _evidenceText.Text), Actor(), Reason()));
 
     private void RegisterItem() => Run(() => new ForeignCurrencyMonetaryItemService(_context).Register(new(
-        decimal.ToInt64(_recognitionLineId.Value), (ForeignMonetaryItemKind)_itemKind.SelectedItem!,
+        decimal.ToInt64(_recognitionLineId.Value), SelectedEnum<ForeignMonetaryItemKind>(_itemKind),
         _itemReference.Text), Actor(), Reason()));
 
     private void SettleItem() => Run(() => new ForeignCurrencyMonetaryItemService(_context).Settle(new(
@@ -540,6 +580,63 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         : _reasonTextBox.Text.Trim();
 
     private static string Actor() => AuthenticationService.CurrentUsername;
+
+    protected override void ApplyLocalizedResources()
+    {
+        BindAccountingEnums(PreserveSelectedEnum<AccountingAdjustmentType>(_adjustmentType));
+        BindExchangeRatePurposes(PreserveSelectedEnum<ExchangeRatePurpose>(_ratePurpose));
+        BindForeignItemKinds(PreserveSelectedEnum<ForeignMonetaryItemKind>(_itemKind));
+        if (!string.IsNullOrWhiteSpace(_summaryLabel.Text)) LoadOverview();
+        foreach (var grid in new[]
+        {
+            _journalsGrid, _periodsGrid, _yearsGrid, _adjustmentsGrid,
+            _stockPostingGrid, _vatPostingGrid, _purchaseReceivingGrid,
+            _configurationGrid, _ratesGrid, _itemsGrid
+        })
+        {
+            grid.Invalidate();
+        }
+    }
+
+    private void BindAccountingEnums(AccountingAdjustmentType? selected = null) => BindEnumOptions(
+        _adjustmentType,
+        selected,
+        Enum.GetValues<AccountingAdjustmentType>().Select(value =>
+            new LocalizedEnumOption<AccountingAdjustmentType>(value, $"Enum.AccountingAdjustmentType.{value}")));
+
+    private void BindExchangeRatePurposes(ExchangeRatePurpose? selected = null) => BindEnumOptions(
+        _ratePurpose,
+        selected,
+        Enum.GetValues<ExchangeRatePurpose>().Select(value =>
+            new LocalizedEnumOption<ExchangeRatePurpose>(value, $"Enum.ExchangeRatePurpose.{value}")));
+
+    private void BindForeignItemKinds(ForeignMonetaryItemKind? selected = null) => BindEnumOptions(
+        _itemKind,
+        selected,
+        Enum.GetValues<ForeignMonetaryItemKind>().Select(value =>
+            new LocalizedEnumOption<ForeignMonetaryItemKind>(value, $"Enum.ForeignMonetaryItemKind.{value}")));
+
+    private static void BindEnumOptions<T>(
+        ComboBox combo,
+        T? selected,
+        IEnumerable<LocalizedEnumOption<T>> options) where T : struct, Enum
+    {
+        combo.DataSource = options.ToList();
+        combo.DisplayMember = nameof(LocalizedEnumOption<T>.Text);
+        if (selected.HasValue)
+        {
+            combo.SelectedItem = combo.Items.Cast<LocalizedEnumOption<T>>()
+                .FirstOrDefault(option => EqualityComparer<T>.Default.Equals(option.Value, selected.Value));
+        }
+    }
+
+    private static T? PreserveSelectedEnum<T>(ComboBox combo) where T : struct, Enum =>
+        combo.SelectedItem is LocalizedEnumOption<T> option ? option.Value : null;
+
+    private static T SelectedEnum<T>(ComboBox combo) where T : struct, Enum =>
+        combo.SelectedItem is LocalizedEnumOption<T> option
+            ? option.Value
+            : throw new InvalidOperationException(LocalizationManager.Get("SelectListValue"));
     private static long SelectedId(DataGridView grid) => SelectedNullableId(grid)
         ?? throw new InvalidOperationException("حدد سجلًا أولًا.");
     private static long? SelectedNullableId(DataGridView grid) => grid.CurrentRow?.Cells["Id"].Value is object value
@@ -584,12 +681,29 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
         return button;
     }
 
-    private static DataGridView CreateGrid() => new()
+    private static DataGridView CreateGrid()
     {
-        Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-        MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false
-    };
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
+            MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowHeadersVisible = false
+        };
+        grid.CellFormatting += (_, args) =>
+        {
+            if (args.Value is not Enum enumValue) return;
+            args.Value = LocalizedEnumText(enumValue);
+            args.FormattingApplied = true;
+        };
+        return grid;
+    }
+
+    private static string LocalizedEnumText(Enum value)
+    {
+        var key = $"Enum.{value.GetType().Name}.{value}";
+        var translated = LocalizationManager.Get(key);
+        return translated == $"[{key}]" ? value.ToString() : translated;
+    }
     private static ComboBox CreateCombo(int width = 150) => new()
         { Width = width, DropDownStyle = ComboBoxStyle.DropDownList };
     private static NumericUpDown CreateAmount(int decimals, decimal maximum) => new()
@@ -598,8 +712,16 @@ public sealed class AccountingManagementForm : AquaFarmBaseForm
     private static void ShowError(Exception ex)
     {
         LoggingService.LogError(ex, "Accounting management operation failed");
-        MessageBox.Show(ex.Message, "تعذر تنفيذ العملية", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        MessageBox.Show(
+            LocalizationManager.GetUserMessage(ex),
+            LocalizationManager.Get("OperationFailedTitle"),
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
     }
 
     private sealed record Lookup<T>(T Id, string Text);
+    private sealed record LocalizedEnumOption<T>(T Value, string ResourceKey) where T : struct, Enum
+    {
+        public string Text => LocalizationManager.Get(ResourceKey);
+    }
 }
