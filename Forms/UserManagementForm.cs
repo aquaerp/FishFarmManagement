@@ -577,9 +577,10 @@ namespace FishFarmManager.Forms
                             $"المستخدم المستهدف: {selectedUser.Username}"
                         );
 
+                        Clipboard.SetText(temporaryPassword);
                         MessageBox.Show(
-                            $"تم إعادة تعيين كلمة المرور بنجاح!\n\n" +
-                            $"كلمة المرور المؤقتة: {temporaryPassword}",
+                            "تم توليد كلمة مرور مؤقتة. ستنسخ إلى الحافظة الآن؛ " +
+                            "سلّمها للمستخدم عبر قناة آمنة ثم امسح الحافظة.",
                             "نجاح",
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Information);

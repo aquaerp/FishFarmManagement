@@ -38,6 +38,10 @@ jobs:
         shell: pwsh
         run: ./Scripts/Verify-G3FunctionalScope.ps1
 
+      - name: Check UI data-exposure policy
+        shell: pwsh
+        run: ./Scripts/Verify-G5UserDataExposure.ps1
+
       - name: Build deterministic release package
         shell: pwsh
         run: ./Scripts/Verify-ReproducibleRelease.ps1 -Version "1.0.${{ github.run_number }}" -OutputRoot "${{ runner.temp }}\AquaFarm-Release"

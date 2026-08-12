@@ -646,7 +646,8 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في تحميل دورات الإنتاج: {ex.Message}\n\nDetails: {ex.InnerException?.Message}", "خطأ",
+                LoggingService.LogError(ex, "Error loading production cycles in sales order form");
+                MessageBox.Show("تعذر تحميل دورات الإنتاج. راجع السجل الفني.", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1063,7 +1064,8 @@ namespace FishFarmManager.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في حفظ البيانات: {ex.Message}\n{ex.InnerException?.Message}", "خطأ",
+                LoggingService.LogError(ex, "Error saving sales order");
+                MessageBox.Show("تعذر حفظ طلب المبيعات. راجع السجل الفني.", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
