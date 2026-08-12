@@ -19,6 +19,7 @@ namespace FishFarmManager.Forms
         private readonly FinancialService _financialService;
         private readonly PrintService _printService;
         private readonly ExcelExportService _excelExportService;
+        private IncomeStatementData? _currentIncomeStatement;
 
         private DateTimePicker _startDatePicker = null!;
         private DateTimePicker _endDatePicker = null!;
@@ -419,6 +420,7 @@ namespace FishFarmManager.Forms
             var endDate = _endDatePicker.Value.Date;
             
             var incomeStatement = await _financialService.GenerateIncomeStatementAsync(startDate, endDate);
+            _currentIncomeStatement = incomeStatement;
 
             _reportPanel.Controls.Clear();
 
@@ -495,6 +497,8 @@ namespace FishFarmManager.Forms
         private async Task GenerateSummaryAsync()
         {
             _summaryPanel.Controls.Clear();
+            var value = _currentIncomeStatement
+                ?? throw new InvalidOperationException("Income statement data is not available.");
             
             // Add KPI cards and summary information
             var summaryTitle = new Label
@@ -508,17 +512,37 @@ namespace FishFarmManager.Forms
             };
             _summaryPanel.Controls.Add(summaryTitle);
 
+            var summary = new Label
+            {
+                Text = $"إجمالي الإيرادات: {value.TotalRevenue:N2} ر.س\n" +
+                       $"إجمالي الربح: {value.GrossProfit:N2} ر.س ({value.GrossProfitMargin:N2}%)\n" +
+                       $"المصروفات التشغيلية: {value.TotalOperatingExpenses:N2} ر.س\n" +
+                       $"الربح التشغيلي: {value.OperatingProfit:N2} ر.س ({value.OperatingProfitMargin:N2}%)\n" +
+                       $"صافي الربح: {value.NetProfit:N2} ر.س ({value.NetProfitMargin:N2}%)",
+                Location = new Point(20, 70),
+                Size = new Size(700, 220),
+                Font = new Font("Cairo", 12F),
+                TextAlign = ContentAlignment.TopRight
+            };
+            _summaryPanel.Controls.Add(summary);
+
             await Task.CompletedTask;
         }
 
         private async Task GenerateChartsAsync()
         {
             _chartsPanel.Controls.Clear();
+            var value = _currentIncomeStatement
+                ?? throw new InvalidOperationException("Income statement data is not available.");
             
             // Create revenue vs expenses summary
             var revenueExpensesLabel = new Label
             {
-                Text = "ملخص الإيرادات والمصروفات\n\nسيتم عرض البيانات هنا",
+                Text = $"مقارنة الإيرادات والمصروفات\n\n" +
+                       $"الإيرادات: {value.TotalRevenue:N2} ر.س\n" +
+                       $"تكلفة المبيعات: {value.CostOfGoodsSold:N2} ر.س\n" +
+                       $"المصروفات التشغيلية: {value.TotalOperatingExpenses:N2} ر.س\n" +
+                       $"صافي الربح: {value.NetProfit:N2} ر.س",
                 Location = new Point(20, 20),
                 Size = new Size(600, 400),
                 BackColor = Color.White,
@@ -744,22 +768,24 @@ namespace FishFarmManager.Forms
         {
             var dt = new System.Data.DataTable();
             dt.Columns.Add("البند", typeof(string));
-            dt.Columns.Add("المبلغ", typeof(string));
-
-            // ملاحظة: هذا مثال بسيط. يمكن تحسينه لاحقاً باستخدام البيانات الفعلية
-            // من FinancialService أو من الواجهة الحالية
-
-            try
-            {
-                // يمكن تحسين هذا لاحقاً لاستخراج البيانات من الواجهة الحالية
-                dt.Rows.Add("الإيرادات", "0.00");
-                dt.Rows.Add("التكاليف", "0.00");
-                dt.Rows.Add("إجمالي الربح", "0.00");
-            }
-            catch
-            {
-                // في حالة الخطأ، نرجع جدول فارغ
-            }
+            dt.Columns.Add("المبلغ", typeof(decimal));
+            var value = _currentIncomeStatement
+                ?? throw new InvalidOperationException("Generate the income statement before exporting it.");
+            dt.Rows.Add("إيرادات المبيعات", value.SalesRevenue);
+            dt.Rows.Add("إيرادات أخرى", value.OtherRevenue);
+            dt.Rows.Add("إجمالي الإيرادات", value.TotalRevenue);
+            dt.Rows.Add("تكلفة البضاعة المباعة", value.CostOfGoodsSold);
+            dt.Rows.Add("إجمالي الربح", value.GrossProfit);
+            dt.Rows.Add("مصروف الرواتب", value.SalariesExpense);
+            dt.Rows.Add("مصروف الإهلاك", value.DepreciationExpense);
+            dt.Rows.Add("مصروف المرافق", value.UtilitiesExpense);
+            dt.Rows.Add("مصروف الصيانة", value.MaintenanceExpense);
+            dt.Rows.Add("مصروفات تشغيلية أخرى", value.OtherOperatingExpenses);
+            dt.Rows.Add("إجمالي المصروفات التشغيلية", value.TotalOperatingExpenses);
+            dt.Rows.Add("الربح التشغيلي", value.OperatingProfit);
+            dt.Rows.Add("صافي الربح قبل الضريبة", value.NetProfitBeforeTax);
+            dt.Rows.Add("ضريبة الدخل", value.IncomeTax);
+            dt.Rows.Add("صافي الربح", value.NetProfit);
 
             return dt;
         }
@@ -798,12 +824,24 @@ namespace FishFarmManager.Forms
         {
             try
             {
-                MessageBox.Show("وظيفة الإرسال بالبريد الإلكتروني ستكون متاحة قريباً", "الإرسال",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                var value = _currentIncomeStatement
+                    ?? throw new InvalidOperationException("أنشئ قائمة الدخل قبل إعداد الرسالة.");
+                var subject = Uri.EscapeDataString($"قائمة الدخل {_startDatePicker.Value:yyyy-MM-dd} - {_endDatePicker.Value:yyyy-MM-dd}");
+                var body = Uri.EscapeDataString(
+                    $"إجمالي الإيرادات: {value.TotalRevenue:N2} ر.س\n" +
+                    $"إجمالي المصروفات التشغيلية: {value.TotalOperatingExpenses:N2} ر.س\n" +
+                    $"صافي الربح: {value.NetProfit:N2} ر.س\n\n" +
+                    "يرجى مراجعة التقرير المعتمد داخل النظام.");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = $"mailto:?subject={subject}&body={body}",
+                    UseShellExecute = true
+                });
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في الإرسال: {ex.Message}", "خطأ",
+                LoggingService.LogError(ex, "Error opening income statement email draft");
+                MessageBox.Show("تعذر فتح عميل البريد الافتراضي. راجع إعدادات Windows.", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

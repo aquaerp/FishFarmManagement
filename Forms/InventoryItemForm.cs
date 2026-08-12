@@ -1160,9 +1160,37 @@ namespace FishFarmManager.Forms
 
         private void ExportButton_Click(object? sender, EventArgs e)
         {
-            // يمكن تطوير تصدير إلى Excel لاحقاً
-            MessageBox.Show("سيتم تطوير ميزة التصدير قريباً", "قيد التطوير", 
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                if (_itemsGrid.Rows.Count == 0)
+                {
+                    MessageBox.Show("لا توجد بيانات ظاهرة للتصدير", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var table = new DataTable("Inventory");
+                var columns = _itemsGrid.Columns.Cast<DataGridViewColumn>()
+                    .Where(column => column.Visible && column.Name != "Item")
+                    .ToList();
+                foreach (var column in columns)
+                    table.Columns.Add(string.IsNullOrWhiteSpace(column.HeaderText) ? column.Name : column.HeaderText);
+                foreach (DataGridViewRow row in _itemsGrid.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    table.Rows.Add(columns.Select(column => row.Cells[column.Index].Value?.ToString() ?? string.Empty).ToArray());
+                }
+
+                var fileName = $"Inventory_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var path = new ExcelExportService().ExportDataTableToExcel(table, fileName, "المخزون");
+                if (MessageBox.Show($"تم تصدير النتائج الظاهرة إلى:\n{path}\n\nفتح الملف؟", "نجح التصدير",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    new ExcelExportService().OpenExcelFile(path);
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error exporting inventory items");
+                MessageBox.Show("تعذر تصدير المخزون. راجع السجل الفني.", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
