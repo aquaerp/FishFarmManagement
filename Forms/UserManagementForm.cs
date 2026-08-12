@@ -578,6 +578,7 @@ namespace FishFarmManager.Forms
                         );
 
                         Clipboard.SetText(temporaryPassword);
+                        ScheduleClipboardClear(temporaryPassword);
                         MessageBox.Show(
                             "تم توليد كلمة مرور مؤقتة. ستنسخ إلى الحافظة الآن؛ " +
                             "سلّمها للمستخدم عبر قناة آمنة ثم امسح الحافظة.",
@@ -598,6 +599,22 @@ namespace FishFarmManager.Forms
                 MessageBox.Show($"حدث خطأ: {ex.Message}", "خطأ",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private static void ScheduleClipboardClear(string sensitiveValue)
+        {
+            var timer = new System.Windows.Forms.Timer { Interval = 60_000 };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                try
+                {
+                    if (Clipboard.ContainsText() && Clipboard.GetText() == sensitiveValue)
+                        Clipboard.Clear();
+                }
+                finally { timer.Dispose(); }
+            };
+            timer.Start();
         }
 
         private void ToggleStatusButton_Click(object? sender, EventArgs e)

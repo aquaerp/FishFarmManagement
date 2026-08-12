@@ -407,9 +407,10 @@ namespace FishFarmManager.Forms
                     return false;
                 }
 
-                if (_passwordTextBox.Text.Length < 6)
+                var passwordValidation = AuthenticationService.ValidatePasswordComplexity(_passwordTextBox.Text);
+                if (!passwordValidation.IsValid)
                 {
-                    MessageBox.Show("كلمة المرور يجب أن تكون 6 أحرف على الأقل", "تحذير",
+                    MessageBox.Show(string.Join("\n", passwordValidation.Errors), "تحذير",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _passwordTextBox.Focus();
                     return false;
