@@ -108,6 +108,13 @@ public static class StartupValidationService
             {
                 throw new InvalidOperationException("Database integrity validation failed.");
             }
+
+            command.CommandText = "PRAGMA foreign_key_check;";
+            using var violations = command.ExecuteReader();
+            if (violations.Read())
+            {
+                throw new InvalidOperationException("Database foreign-key validation failed.");
+            }
         }
         finally
         {
