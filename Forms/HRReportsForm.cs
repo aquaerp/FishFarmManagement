@@ -27,7 +27,6 @@ namespace FishFarmManager.Forms
         private Panel _salaryReportPanel = null!;
         private Panel _leaveReportPanel = null!;
         private Panel _employeeReportPanel = null!;
-        private Panel _dashboardPanel = null!;
 
         #endregion
 
@@ -96,13 +95,9 @@ namespace FishFarmManager.Forms
 
         private void CreateTabs()
         {
-            // Tab 1: Dashboard
-            var dashboardTab = new TabPage("لوحة التحكم");
-            _dashboardPanel = CreateDashboardPanel();
-            dashboardTab.Controls.Add(_dashboardPanel);
-            _tabControl.TabPages.Add(dashboardTab);
-
-            // Tab 2: Attendance Report
+            // Dashboard is intentionally excluded from the first commercial release;
+            // its underlying detailed reports remain available in the following tabs.
+            // Tab 1: Attendance Report
             var attendanceTab = new TabPage("تقرير الحضور");
             _attendanceReportPanel = CreateAttendanceReportPanel();
             attendanceTab.Controls.Add(_attendanceReportPanel);
@@ -158,7 +153,7 @@ namespace FishFarmManager.Forms
                 WrapContents = false
             };
 
-            // Card placeholders - will be populated in LoadDashboardDataAsync
+            // KPI cards for the deferred dashboard implementation.
             cardsPanel.Controls.Add(CreateKPICard("إجمالي الموظفين", "0", Color.FromArgb(46, 92, 138)));
             cardsPanel.Controls.Add(CreateKPICard("نسبة الحضور", "0%", Color.FromArgb(38, 166, 154)));
             cardsPanel.Controls.Add(CreateKPICard("إجمالي الرواتب الشهري", "0 ريال", Color.FromArgb(74, 144, 226)));
@@ -241,7 +236,7 @@ namespace FishFarmManager.Forms
         {
             try
             {
-                // This would load actual data - for now it's a placeholder
+                // Reserved for the deferred dashboard implementation.
                 await Task.CompletedTask;
                 LoggingService.LogInfo("Dashboard data loaded");
             }

@@ -1117,8 +1117,41 @@ namespace FishFarmManager.Forms
                 return;
             }
 
-            MessageBox.Show("ميزة طباعة الفاتورة قيد التطوير", "معلومة",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                var order = _context.SalesOrders.AsNoTracking()
+                    .Include(value => value.Customer).Include(value => value.Items)
+                    .SingleOrDefault(value => value.Id == _selectedOrderId)
+                    ?? throw new InvalidOperationException("Sales order does not exist.");
+                var lines = new SalesOrderDocumentService().BuildInvoiceLines(order);
+                using var document = new System.Drawing.Printing.PrintDocument();
+                var lineIndex = 0;
+                document.DocumentName = $"SalesInvoice-{order.OrderNumber}";
+                document.PrintPage += (_, args) =>
+                {
+                    if (args.Graphics == null) return;
+                    using var font = new Font("Arial", 11);
+                    using var titleFont = new Font("Arial", 16, FontStyle.Bold);
+                    using var format = new StringFormat { Alignment = StringAlignment.Far, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+                    var y = args.MarginBounds.Top;
+                    while (lineIndex < lines.Count)
+                    {
+                        var currentFont = lineIndex == 0 ? titleFont : font;
+                        var height = currentFont.GetHeight(args.Graphics) + 7;
+                        if (y + height > args.MarginBounds.Bottom) { args.HasMorePages = true; return; }
+                        args.Graphics.DrawString(lines[lineIndex++], currentFont, Brushes.Black,
+                            new RectangleF(args.MarginBounds.Left, y, args.MarginBounds.Width, height), format);
+                        y += (int)height;
+                    }
+                };
+                using var preview = new PrintPreviewDialog { Document = document, Width = 1100, Height = 800 };
+                preview.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error printing sales invoice");
+                MessageBox.Show("تعذرت معاينة فاتورة المبيعات. راجع السجل الفني.", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void ClearForm()

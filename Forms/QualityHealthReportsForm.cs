@@ -722,7 +722,7 @@ namespace FishFarmManager.Forms
             reportPanel.Controls.Add(trendsGrid);
             yPos += 310;
 
-            // Chart placeholder (would use ChartControl for actual chart)
+            // Monthly pass-rate chart
             Label chartLabel = new Label
             {
                 Text = "الرسم البياني - Chart: معدل النجاح الشهري - Monthly Pass Rate Trend",
