@@ -56,3 +56,15 @@ public sealed class Stage5IdentityAuthorizationTests
         PasswordChangedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow, CreatedBy = "test"
     });
 }
+
+public sealed class Stage5AuditPrivacyTests
+{
+    [Theory]
+    [InlineData("password=SuperSecret123", "password=[REDACTED]")]
+    [InlineData("token: abc.def.ghi", "token=[REDACTED]")]
+    [InlineData("Authorization=Basic dXNlcjpwYXNz", "Authorization=[REDACTED]")]
+    public void SecurityAudit_RedactsSecretValues(string details, string expected)
+    {
+        Assert.Equal(expected, SecurityAuditService.RedactSecrets(details));
+    }
+}
