@@ -5,6 +5,7 @@ using FishFarmManager.Services;
 using FishFarmManager.Data;
 using FishFarmManager.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace FishFarmManager.Forms
 {
@@ -15,6 +16,7 @@ namespace FishFarmManager.Forms
     {
         private readonly FishFarmContext _context = null!;
         private readonly UserSettingsService _settingsService = null!;
+        private readonly IConfiguration _configuration = null!;
         private UserSettingsDocument _settings = new();
         private TextBox _dbPathTextBox = null!;
         private NumericUpDown _timeoutNumeric = null!;
@@ -36,7 +38,7 @@ namespace FishFarmManager.Forms
         private Button _saveButton = null!;
         private Button _cancelButton = null!;
 
-        public SettingsForm(FishFarmContext context, UserSettingsService settingsService)
+        public SettingsForm(FishFarmContext context, UserSettingsService settingsService, IConfiguration configuration)
         {
             // ✅ فحص الصلاحيات - الإعدادات للمديرين فقط
             if (!AuthenticationService.HasPermission(UserRole.Admin))
@@ -59,6 +61,7 @@ namespace FishFarmManager.Forms
 
             _context = context;
             _settingsService = settingsService;
+            _configuration = configuration;
             InitializeComponent();
             LoadSettings();
         }
@@ -575,28 +578,24 @@ namespace FishFarmManager.Forms
             }
         }
 
-        private void CreateBackupNow()
+        private async void CreateBackupNow()
         {
             try
             {
-                // إنشاء نسخة احتياطية
-                var backupPath = Path.GetFullPath(_backupPathTextBox.Text.Trim());
-                var fileName = $"FishFarm_Backup_{DateTime.Now:yyyyMMdd_HHmmss}.db";
-                var fullPath = System.IO.Path.Combine(backupPath, fileName);
-                
-                System.IO.Directory.CreateDirectory(backupPath);
-                
-                // نسخ ملف قاعدة البيانات
-                var sourceDb = UserSettingsService.ExtractDatabasePath(_context.Database.GetConnectionString()!);
-                using var source = new Microsoft.Data.Sqlite.SqliteConnection(
-                    UserSettingsService.CreateConnectionString(sourceDb, (int)_timeoutNumeric.Value));
-                using var destination = new Microsoft.Data.Sqlite.SqliteConnection(
-                    UserSettingsService.CreateConnectionString(fullPath, (int)_timeoutNumeric.Value));
-                source.Open();
-                destination.Open();
-                source.BackupDatabase(destination);
-                
-                ThemeManager.ShowSuccess(LocalizationManager.Format("BackupCreated", fileName));
+                var overrides = new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:DefaultConnection"] = _context.Database.GetConnectionString(),
+                    ["Backup:Directory"] = Path.GetFullPath(_backupPathTextBox.Text.Trim()),
+                    ["Backup:MaxBackups"] = ((int)_backupCountNumeric.Value).ToString(),
+                    ["Backup:Encrypt"] = "true"
+                };
+                var configuration = new ConfigurationBuilder()
+                    .AddConfiguration(_configuration).AddInMemoryCollection(overrides).Build();
+                var service = new BackupService(_context, configuration);
+                if (!await service.CreateBackup(BackupType.Manual))
+                    throw new InvalidOperationException("The verified backup operation failed.");
+                var backup = service.GetAvailableBackups().First();
+                ThemeManager.ShowSuccess(LocalizationManager.Format("BackupCreated", backup.FileName));
             }
             catch (Exception ex)
             {

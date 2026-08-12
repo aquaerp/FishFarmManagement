@@ -27,8 +27,11 @@ public static class RuntimePaths
         }
 
         builder.DataSource = Path.GetFullPath(dataSource);
+        EnsureLocalDatabasePath(builder.DataSource);
         builder.DefaultTimeout = Math.Clamp(
             configuration.GetValue("Database:ConnectionTimeoutSeconds", 30), 5, 300);
+        builder.ForeignKeys = true;
+        builder.Mode = SqliteOpenMode.ReadWriteCreate;
         return builder.ConnectionString;
     }
 
@@ -62,5 +65,12 @@ public static class RuntimePaths
     public static string GetUserSettingsPath()
     {
         return Path.Combine(GetApplicationDataDirectory(), "user-settings.json");
+    }
+
+    public static void EnsureLocalDatabasePath(string databasePath)
+    {
+        var fullPath = Path.GetFullPath(databasePath);
+        if (new Uri(fullPath).IsUnc || fullPath.StartsWith(@"\\", StringComparison.Ordinal))
+            throw new InvalidOperationException("SQLite databases on network shares are not supported. Choose a local disk path.");
     }
 }

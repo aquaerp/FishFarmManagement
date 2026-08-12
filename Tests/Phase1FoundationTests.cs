@@ -31,6 +31,34 @@ public sealed class RuntimePathsTests
     }
 
     [Fact]
+    public void ResolveDatabasePath_RejectsUncNetworkShare()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = @"Data Source=\\server\share\FishFarm.db",
+            ["Database:Provider"] = "SQLite"
+        });
+
+        var error = Assert.Throws<InvalidOperationException>(() => RuntimePaths.ResolveDatabasePath(configuration));
+        Assert.Contains("network shares", error.Message);
+    }
+
+    [Fact]
+    public void ResolveConnectionString_EnablesForeignKeysAndReadWriteCreateMode()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"aquafarm-options-{Guid.NewGuid():N}.db");
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = $"Data Source={path}",
+            ["Database:Provider"] = "SQLite"
+        });
+
+        var builder = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(RuntimePaths.ResolveConnectionString(configuration));
+        Assert.True(builder.ForeignKeys);
+        Assert.Equal(Microsoft.Data.Sqlite.SqliteOpenMode.ReadWriteCreate, builder.Mode);
+    }
+
+    [Fact]
     public void StartupValidation_RejectsDemoDataInProduction()
     {
         var root = Path.Combine(Path.GetTempPath(), $"aquafarm-startup-{Guid.NewGuid():N}");

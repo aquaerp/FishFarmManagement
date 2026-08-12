@@ -122,15 +122,20 @@ public sealed class UserSettingsService
         var builder = new SqliteConnectionStringBuilder(connectionString);
         if (string.IsNullOrWhiteSpace(builder.DataSource))
             throw new InvalidOperationException("يجب تحديد مسار قاعدة البيانات.");
-        return Path.GetFullPath(Environment.ExpandEnvironmentVariables(builder.DataSource));
+        var path = Path.GetFullPath(Environment.ExpandEnvironmentVariables(builder.DataSource));
+        RuntimePaths.EnsureLocalDatabasePath(path);
+        return path;
     }
 
     public static string CreateConnectionString(string databasePath, int timeoutSeconds)
     {
+        RuntimePaths.EnsureLocalDatabasePath(databasePath);
         return new SqliteConnectionStringBuilder
         {
             DataSource = Path.GetFullPath(databasePath),
-            DefaultTimeout = Math.Clamp(timeoutSeconds, 5, 300)
+            DefaultTimeout = Math.Clamp(timeoutSeconds, 5, 300),
+            ForeignKeys = true,
+            Mode = SqliteOpenMode.ReadWriteCreate
         }.ToString();
     }
 
