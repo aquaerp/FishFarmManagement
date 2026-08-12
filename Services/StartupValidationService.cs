@@ -102,6 +102,15 @@ public static class StartupValidationService
         try
         {
             using var command = connection.CreateCommand();
+            foreach (var pragma in new[]
+                     {
+                         "PRAGMA foreign_keys=ON;", "PRAGMA busy_timeout=30000;",
+                         "PRAGMA journal_mode=WAL;", "PRAGMA synchronous=FULL;"
+                     })
+            {
+                command.CommandText = pragma;
+                command.ExecuteNonQuery();
+            }
             command.CommandText = "PRAGMA integrity_check;";
             var result = Convert.ToString(command.ExecuteScalar());
             if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))

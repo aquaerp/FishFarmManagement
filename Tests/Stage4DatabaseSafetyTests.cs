@@ -41,6 +41,39 @@ public sealed class Stage4MigrationTests
         });
     }
 
+    [Fact]
+    public void LatestSchema_RollsBackOneMigrationAndUpgradesAgain()
+    {
+        WithDatabase((context, _) =>
+        {
+            var migrations = context.Database.GetMigrations().ToArray();
+            Assert.True(migrations.Length >= 2);
+            var migrator = context.GetService<IMigrator>();
+            migrator.Migrate();
+            migrator.Migrate(migrations[^2]);
+            Assert.Equal(migrations[^2], context.Database.GetAppliedMigrations().Last());
+            migrator.Migrate();
+            Assert.Equal(migrations[^1], context.Database.GetAppliedMigrations().Last());
+            StartupValidationService.ValidateDatabase(context);
+        });
+    }
+
+    [Fact]
+    public void StartupValidation_EnablesWalAndForeignKeys()
+    {
+        WithDatabase((context, _) =>
+        {
+            context.Database.Migrate();
+            StartupValidationService.ValidateDatabase(context);
+            context.Database.OpenConnection();
+            using var command = context.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "PRAGMA journal_mode;";
+            Assert.Equal("wal", Convert.ToString(command.ExecuteScalar()), ignoreCase: true);
+            command.CommandText = "PRAGMA foreign_keys;";
+            Assert.Equal(1L, Convert.ToInt64(command.ExecuteScalar()));
+        });
+    }
+
     private static void WithDatabase(Action<FishFarmContext, string> test)
     {
         var path = Path.Combine(Path.GetTempPath(), $"aquafarm-g4-migration-{Guid.NewGuid():N}.db");
@@ -49,7 +82,8 @@ public sealed class Stage4MigrationTests
     }
 
     private static FishFarmContext CreateContext(string path) => new(
-        new DbContextOptionsBuilder<FishFarmContext>().UseSqlite($"Data Source={path};Pooling=False;Foreign Keys=True").Options);
+        new DbContextOptionsBuilder<FishFarmContext>().UseSqlite(
+            $"Data Source={path};Pooling=False;Foreign Keys=True;Default Timeout=30;Mode=ReadWriteCreate").Options);
 }
 
 public sealed class Stage4BackupFailureTests
