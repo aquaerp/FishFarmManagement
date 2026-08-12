@@ -34,6 +34,10 @@ jobs:
         shell: pwsh
         run: ./Scripts/Verify-ReleasePolicy.ps1 -ArtifactsRoot "${{ runner.temp }}\AquaFarm-G0"
 
+      - name: Check functional-scope completeness
+        shell: pwsh
+        run: ./Scripts/Verify-G3FunctionalScope.ps1
+
       - name: Build deterministic release package
         shell: pwsh
         run: ./Scripts/Verify-ReproducibleRelease.ps1 -Version "1.0.${{ github.run_number }}" -OutputRoot "${{ runner.temp }}\AquaFarm-Release"
