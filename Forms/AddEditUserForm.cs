@@ -15,6 +15,7 @@ namespace FishFarmManager.Forms
     public partial class AddEditUserForm : Form
     {
         private readonly FishFarmContext _context;
+        private readonly AuthenticationService _authenticationService;
         private readonly int? _userId;
         private User? _existingUser;
 
@@ -32,6 +33,7 @@ namespace FishFarmManager.Forms
         public AddEditUserForm(FishFarmContext context, int? userId = null)
         {
             _context = context;
+            _authenticationService = new AuthenticationService(context);
             _userId = userId;
             
             InitializeComponent();
@@ -455,27 +457,9 @@ namespace FishFarmManager.Forms
                 _ => UserRole.SalesStaff
             };
 
-            var newUser = new User
-            {
-                Username = _usernameTextBox.Text.Trim(),
-                FullName = _fullNameTextBox.Text.Trim(),
-                Email = string.IsNullOrWhiteSpace(_emailTextBox.Text) ? "" : _emailTextBox.Text.Trim(),
-                Role = userRole,
-                IsActive = _isActiveCheckBox.Checked,
-                CreatedAt = DateTime.Now
-            };
-
-            // تشفير كلمة المرور
-            newUser.PasswordHash = BCrypt.Net.BCrypt.EnhancedHashPassword(_passwordTextBox.Text);
-
-            _context.Users.Add(newUser);
-            _context.SaveChanges();
-
-            LoggingService.LogUserActivity(
-                AuthenticationService.CurrentUsername,
-                "إضافة مستخدم جديد",
-                $"المستخدم: {newUser.Username}, الدور: {newUser.Role}"
-            );
+            if (!_authenticationService.CreateUser(_usernameTextBox.Text.Trim(), _passwordTextBox.Text,
+                    _fullNameTextBox.Text.Trim(), _emailTextBox.Text.Trim(), userRole))
+                throw new InvalidOperationException("تعذر إنشاء المستخدم وفق سياسة الصلاحيات وكلمة المرور.");
         }
 
         private void UpdateExistingUser()
@@ -501,17 +485,9 @@ namespace FishFarmManager.Forms
                 };
             }
 
-            _existingUser.FullName = _fullNameTextBox.Text.Trim();
-            _existingUser.Email = string.IsNullOrWhiteSpace(_emailTextBox.Text) ? "" : _emailTextBox.Text.Trim();
-            _existingUser.IsActive = _isActiveCheckBox.Checked;
-
-            _context.SaveChanges();
-
-            LoggingService.LogUserActivity(
-                AuthenticationService.CurrentUsername,
-                "تعديل بيانات مستخدم",
-                $"المستخدم: {_existingUser.Username}"
-            );
+            if (!_authenticationService.UpdateUserProfile(_existingUser.UserId, _fullNameTextBox.Text.Trim(),
+                    _emailTextBox.Text.Trim(), _existingUser.Role, _isActiveCheckBox.Checked))
+                throw new InvalidOperationException("تعذر تعديل المستخدم وفق سياسة الصلاحيات.");
         }
 
         protected override void Dispose(bool disposing)

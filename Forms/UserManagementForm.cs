@@ -687,14 +687,8 @@ namespace FishFarmManager.Forms
 
                 if (result == DialogResult.Yes)
                 {
-                    _context.Users.Remove(selectedUser);
-                    _context.SaveChanges();
-
-                    LoggingService.LogUserActivity(
-                        AuthenticationService.CurrentUsername,
-                        "حذف مستخدم",
-                        $"المستخدم المحذوف: {selectedUser.Username}"
-                    );
+                    if (!_authService.DeleteUser(selectedUser.UserId))
+                        throw new InvalidOperationException("تعذر حذف المستخدم وفق سياسة الصلاحيات.");
 
                     LoadUsers();
                     MessageBox.Show("تم حذف المستخدم بنجاح!", "نجاح",

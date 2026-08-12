@@ -225,6 +225,11 @@ namespace FishFarmManager.Services
         {
             try
             {
+                if (!IsAdmin)
+                {
+                    RecordAuditSafe("Administration", "CreateUser", "Denied", CurrentUsername, CurrentUser?.UserId, "User", username);
+                    return false;
+                }
                 // ✅ 1. Validate Username
                 if (!ValidateUsername(username))
                 {
@@ -717,6 +722,53 @@ namespace FishFarmManager.Services
                 return MaxLoginAttempts;
 
             return Math.Max(0, MaxLoginAttempts - _loginAttempts[key].Count);
+        }
+
+        public bool UpdateUserProfile(int userId, string fullName, string email, UserRole role, bool isActive)
+        {
+            try
+            {
+                if (!IsAdmin) return false;
+                var user = _context.Users.Find(userId);
+                if (user == null) return false;
+                if (user.UserId == CurrentUser?.UserId && !isActive) return false;
+                user.FullName = fullName.Trim();
+                user.Email = email.Trim();
+                user.Role = role;
+                user.IsActive = isActive;
+                user.UpdatedAt = DateTime.UtcNow;
+                user.UpdatedBy = CurrentUsername;
+                _context.SaveChanges();
+                RecordAuditSafe("Administration", "UpdateUser", "Succeeded", CurrentUsername,
+                    CurrentUser?.UserId, "User", user.UserId.ToString(), $"Role={role};Active={isActive}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error updating user {UserId}", userId);
+                return false;
+            }
+        }
+
+        public bool DeleteUser(int userId)
+        {
+            try
+            {
+                if (!IsAdmin || userId == CurrentUser?.UserId) return false;
+                var user = _context.Users.Find(userId);
+                if (user == null || string.Equals(user.Username, "admin", StringComparison.OrdinalIgnoreCase)) return false;
+                var subjectId = user.UserId.ToString();
+                _context.Users.Remove(user);
+                _context.SaveChanges();
+                RecordAuditSafe("Administration", "DeleteUser", "Succeeded", CurrentUsername,
+                    CurrentUser?.UserId, "User", subjectId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error deleting user {UserId}", userId);
+                return false;
+            }
         }
 
         private void RecordPersistentFailedAttempt(User user)
