@@ -261,7 +261,8 @@ namespace FishFarmManager.Forms
                 {
                     PondName = p.Pond.Name,
                     TotalProduction = p.Cycles.Sum(c => c.TotalHarvestWeight ?? 0),
-                    ProductionCost = p.Cycles.Sum(c => (c.TotalHarvestWeight ?? 0) * 1.5m), // افتراض تكلفة إنتاج 1.5 دولار لكل كجم
+                    ProductionCost = p.Cycles.Sum(c => (c.TotalCost ?? 0m) /
+                        Math.Max(1, c.ProductionCyclePonds.Count)),
                     AverageSurvivalRate = p.Cycles.Any() ? p.Cycles.Average(c => c.SurvivalRate ?? 0) : 0,
                     AverageFCR = p.Cycles.Any() ? p.Cycles.Average(c => c.FCR ?? 0) : 0,
                     AverageADG = p.Cycles.Any() ? p.Cycles.Average(c => c.ADG ?? 0) : 0,

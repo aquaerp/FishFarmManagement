@@ -923,9 +923,61 @@ namespace FishFarmManager.Forms
             }
         }
 
-        private void PrintButton_Click(object? sender, EventArgs e)
+        private async void PrintButton_Click(object? sender, EventArgs e)
         {
-            MessageBox.Show("سيتم تنفيذ هذه الميزة قريباً", "قريباً", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                if (_ordersGrid.SelectedRows.Count == 0)
+                {
+                    MessageBox.Show("الرجاء اختيار أمر شراء من القائمة أولاً", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var selectedId = Convert.ToInt32(_ordersGrid.SelectedRows[0].Cells["Id"].Value);
+                var order = await _context.PurchaseOrders.AsNoTracking()
+                    .Include(value => value.Supplier)
+                    .Include(value => value.Items)
+                    .SingleOrDefaultAsync(value => value.Id == selectedId);
+                if (order == null)
+                {
+                    MessageBox.Show("أمر الشراء غير موجود", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                var lines = new PurchaseOrderDocumentService().BuildLines(order);
+                using var document = new System.Drawing.Printing.PrintDocument();
+                var lineIndex = 0;
+                document.DocumentName = $"PurchaseOrder-{order.OrderNumber}";
+                document.PrintPage += (_, args) =>
+                {
+                    if (args.Graphics == null) return;
+                    using var font = new Font("Arial", 11);
+                    using var titleFont = new Font("Arial", 16, FontStyle.Bold);
+                    using var format = new StringFormat { Alignment = StringAlignment.Far, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+                    var y = args.MarginBounds.Top;
+                    while (lineIndex < lines.Count)
+                    {
+                        var currentFont = lineIndex == 0 ? titleFont : font;
+                        var height = currentFont.GetHeight(args.Graphics) + 7;
+                        if (y + height > args.MarginBounds.Bottom)
+                        {
+                            args.HasMorePages = true;
+                            return;
+                        }
+                        args.Graphics.DrawString(lines[lineIndex++], currentFont, Brushes.Black,
+                            new RectangleF(args.MarginBounds.Left, y, args.MarginBounds.Width, height), format);
+                        y += (int)height;
+                    }
+                    args.HasMorePages = false;
+                };
+                using var preview = new PrintPreviewDialog { Document = document, Width = 1100, Height = 800 };
+                preview.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogError(ex, "Error printing purchase order");
+                MessageBox.Show("تعذرت معاينة أمر الشراء. راجع السجل الفني.", "خطأ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         #endregion
